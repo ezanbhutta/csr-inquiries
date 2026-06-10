@@ -29,49 +29,63 @@ const firstNonEmpty = (row, indices = []) => {
   return ''
 }
 
+// Normalize one CSV row into a record. `client` is '' when the cell isn't a
+// real buyer username (used to detect orphan rows in the data-quality check).
+function normalizeRow(profile, row, map) {
+  const dateRaw = firstNonEmpty(row, map.date)
+  const statusRaw = firstNonEmpty(row, map.status)
+  const d = parseDate(dateRaw)
+  const csr = map.csr ? matchCsr(firstNonEmpty(row, map.csr)) : null
+  const shiftCol = normalizeShift(firstNonEmpty(row, map.shift))
+  // Prefer an explicit shift; otherwise infer from the CSR's roster shift.
+  const shift = shiftCol !== 'Unassigned' ? shiftCol : csrShift(csr) || 'Unassigned'
+  const clientRaw = firstNonEmpty(row, map.client)
+  return {
+    profile,
+    client: looksLikeClient(clientRaw) ? String(clientRaw).replace(/\s+/g, ' ').trim() : '',
+    country: normalizeCountry(firstNonEmpty(row, map.country)),
+    status: normalizeStatus(statusRaw),
+    converted: isConverted(statusRaw),
+    shift,
+    csr, // null when absent/unrecognized
+    hasCsrColumn: !!map.csr,
+    value: parseMoney(firstNonEmpty(row, map.value)),
+    upsell: /true/i.test(String(firstNonEmpty(row, map.upsell))),
+    notes: String(firstNonEmpty(row, map.notes) || '').replace(/\s+/g, ' ').trim(),
+    date: dateKey(dateRaw),
+    ts: d ? d.getTime() : null,
+  }
+}
+
 // Turn one profile tab's raw CSV text into normalized inquiry records.
+// `rows` = real inquiries (have a client). `orphans` = rows that carry real
+// data (a date / status / shift / CSR) but are missing the client name —
+// surfaced by the data-quality check rather than silently dropped.
 export function parseTab(profile, csvText) {
   const { data } = Papa.parse(csvText, { skipEmptyLines: false })
   const head = detectHeaderRow(data)
-  if (!head) return { rows: [], skipped: 0, headerFound: false }
+  if (!head) return { rows: [], orphans: [], skipped: 0, hasCsrColumn: false, headerFound: false }
 
   const { index, map } = head
   const records = []
+  const orphans = []
   let skipped = 0
 
   for (let r = index + 1; r < data.length; r++) {
     const row = data[r] || []
-    const clientRaw = firstNonEmpty(row, map.client)
-    if (!looksLikeClient(clientRaw)) {
-      if (row.some((c) => String(c || '').trim() !== '')) skipped++
+    const rec = normalizeRow(profile, row, map)
+    if (rec.client) {
+      records.push(rec)
       continue
     }
-
-    const statusRaw = firstNonEmpty(row, map.status)
-    const d = parseDate(firstNonEmpty(row, map.date))
-    const csrCanonical = map.csr ? matchCsr(firstNonEmpty(row, map.csr)) : null
-    const shiftFromCol = normalizeShift(firstNonEmpty(row, map.shift))
-    // Prefer an explicit shift; otherwise infer from the CSR's roster shift.
-    const shift =
-      shiftFromCol !== 'Unassigned' ? shiftFromCol : csrShift(csrCanonical) || 'Unassigned'
-
-    records.push({
-      profile,
-      client: String(clientRaw).replace(/\s+/g, ' ').trim(),
-      country: normalizeCountry(firstNonEmpty(row, map.country)),
-      status: normalizeStatus(statusRaw),
-      converted: isConverted(statusRaw),
-      shift,
-      csr: csrCanonical, // null when absent/unrecognized
-      hasCsrColumn: !!map.csr,
-      value: parseMoney(firstNonEmpty(row, map.value)),
-      upsell: /true/i.test(String(firstNonEmpty(row, map.upsell))),
-      notes: String(firstNonEmpty(row, map.notes) || '').replace(/\s+/g, ' ').trim(),
-      date: dateKey(firstNonEmpty(row, map.date)),
-      ts: d ? d.getTime() : null,
-    })
+    // No client name: keep it as an orphan only if it has a real signal,
+    // so empty/FALSE-checkbox template rows are still ignored.
+    const signal =
+      rec.date != null || (rec.status && rec.status !== 'Other') || rec.shift !== 'Unassigned' || rec.csr
+    if (signal) orphans.push(rec)
+    else if (row.some((c) => String(c || '').trim() !== '')) skipped++
   }
-  return { rows: records, skipped, headerFound: true }
+  return { rows: records, orphans, skipped, hasCsrColumn: !!map.csr, headerFound: true }
 }
 
 // Fetch + parse all profile tabs. Tolerant: a failing tab doesn't sink the load.
@@ -88,20 +102,27 @@ export async function syncAll({ onProgress } = {}) {
   )
 
   const rows = []
+  const orphans = []
   const perProfile = {}
   const errors = []
   results.forEach((r, i) => {
     const profile = PROFILES[i]
     if (r.status === 'fulfilled') {
       rows.push(...r.value.rows)
-      perProfile[profile] = { count: r.value.rows.length, skipped: r.value.skipped }
+      orphans.push(...r.value.orphans)
+      perProfile[profile] = {
+        count: r.value.rows.length,
+        orphans: r.value.orphans.length,
+        skipped: r.value.skipped,
+        hasCsrColumn: r.value.hasCsrColumn,
+      }
     } else {
       errors.push(String(r.reason?.message || r.reason))
-      perProfile[profile] = { count: 0, skipped: 0, error: true }
+      perProfile[profile] = { count: 0, orphans: 0, skipped: 0, hasCsrColumn: false, error: true }
     }
   })
 
-  return { rows, perProfile, errors, syncedAt: Date.now() }
+  return { rows, orphans, perProfile, errors, syncedAt: Date.now() }
 }
 
 // --- localStorage cache (no-op outside the browser) -------------------------

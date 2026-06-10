@@ -137,6 +137,46 @@ export function byStatus(rows) {
     .sort((a, b) => b.count - a.count)
 }
 
+// --- Data quality ----------------------------------------------------------
+// The fields that MUST be present on every inquiry. Everything else is fetched
+// but optional (a blank doesn't raise an error).
+export const REQUIRED_FIELDS = ['Date', 'Client Name', 'Order Status', 'Shift', 'CSR']
+
+export function missingRequired(r) {
+  const m = []
+  if (!r.date) m.push('Date')
+  if (!r.client) m.push('Client Name')
+  if (!r.status) m.push('Order Status') // '' = blank = missing
+  if (r.shift === 'Unassigned') m.push('Shift')
+  if (!r.csr) m.push('CSR')
+  return m
+}
+
+// `records` = inquiries (+ orphan rows that lack a client name).
+export function dataQuality(records) {
+  const counts = Object.fromEntries(REQUIRED_FIELDS.map((f) => [f, 0]))
+  const issues = []
+  const noCsrColumn = new Set()
+  for (const r of records) {
+    if (r.hasCsrColumn === false) noCsrColumn.add(r.profile)
+    const missing = missingRequired(r)
+    if (missing.length) {
+      missing.forEach((f) => (counts[f] += 1))
+      issues.push({ profile: r.profile, client: r.client || '', date: r.date || '', missing })
+    }
+  }
+  // Worst rows first (most missing fields), so the list is good for triage.
+  issues.sort((a, b) => b.missing.length - a.missing.length)
+  return {
+    total: records.length,
+    withIssues: issues.length,
+    clean: records.length - issues.length,
+    counts,
+    issues,
+    noCsrColumnProfiles: [...noCsrColumn],
+  }
+}
+
 // 7-point rolling average of conversion rate, for the trend line.
 export function withRollingRate(daySeries, window = 7) {
   return daySeries.map((d, i) => {

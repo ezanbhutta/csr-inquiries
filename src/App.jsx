@@ -8,12 +8,14 @@ import {
   byProfile,
   byShift,
   byStatus,
+  dataQuality,
   dateRangePreset,
   kpis,
   withRollingRate,
 } from './lib/metrics.js'
 import Gate, { isUnlocked } from './components/Gate.jsx'
 import TimeChart from './components/TimeChart.jsx'
+import DataQuality from './components/DataQuality.jsx'
 import ProfileTable from './components/ProfileTable.jsx'
 import ShiftBreakdown from './components/ShiftBreakdown.jsx'
 import StatusBreakdown from './components/StatusBreakdown.jsx'
@@ -97,6 +99,7 @@ function FilterMenu({ label, options, selected, onChange, allLabel }) {
 export default function App() {
   const [unlocked, setUnlocked] = useState(isUnlocked())
   const [rows, setRows] = useState(() => loadCache()?.rows ?? [])
+  const [orphans, setOrphans] = useState(() => loadCache()?.orphans ?? [])
   const [syncedAt, setSyncedAt] = useState(() => loadCache()?.syncedAt ?? null)
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -110,9 +113,10 @@ export default function App() {
     try {
       const res = await syncAll()
       setRows(res.rows)
+      setOrphans(res.orphans)
       setSyncedAt(res.syncedAt)
       setErrors(res.errors)
-      saveCache({ rows: res.rows, syncedAt: res.syncedAt })
+      saveCache({ rows: res.rows, orphans: res.orphans, syncedAt: res.syncedAt })
     } catch (e) {
       setErrors([String(e?.message || e)])
     } finally {
@@ -144,6 +148,13 @@ export default function App() {
   const csrData = useMemo(() => byCsr(filtered), [filtered])
   const statusRows = useMemo(() => byStatus(filtered), [filtered])
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
+
+  // Data quality is checked over the full set (profile filter only) — date/shift
+  // filters would hide the very rows that are missing a date or shift.
+  const dq = useMemo(() => {
+    const pick = (arr) => (profiles.length ? arr.filter((r) => profiles.includes(r.profile)) : arr)
+    return dataQuality([...pick(rows), ...pick(orphans)])
+  }, [rows, orphans, profiles])
 
   if (!unlocked) return <Gate onUnlock={() => setUnlocked(true)} />
 
@@ -272,6 +283,28 @@ export default function App() {
           />
         </div>
 
+        {/* Data quality banner */}
+        {dq.withIssues > 0 ? (
+          <div
+            className="mb-6 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm"
+            style={{ background: '#FDE9E9', borderColor: '#F6BCBC', color: '#B42318' }}
+          >
+            <span className="mt-0.5">⚠</span>
+            <span>
+              <b>{fmt(dq.withIssues)}</b> {dq.withIssues === 1 ? 'inquiry is' : 'inquiries are'} missing a
+              required field (Date, Client Name, Order Status, Shift, or CSR). See <b>Data quality</b> below.
+            </span>
+          </div>
+        ) : rows.length > 0 ? (
+          <div
+            className="mb-6 flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm"
+            style={{ background: '#E7F8F1', borderColor: '#B6E8D4', color: '#0F7A52' }}
+          >
+            <span>✓</span>
+            <span>All inquiries have the required fields (Date, Client Name, Order Status, Shift, CSR).</span>
+          </div>
+        ) : null}
+
         {/* Charts & tables */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
           <div className="lg:col-span-3">
@@ -281,6 +314,9 @@ export default function App() {
                 {fmt(k.inquiries - datedCount)} inquiries without a parseable date are excluded from the chart but counted everywhere else.
               </p>
             )}
+          </div>
+          <div className="lg:col-span-3">
+            <DataQuality dq={dq} />
           </div>
           <div className="lg:col-span-2">
             <ProfileTable rows={prof} />
