@@ -1,0 +1,28 @@
+{
+  "name": "csr-inquiries",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "CSR Inquiries — daily inquiry & conversion dashboard (sibling to CSR Pulse).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "verify-data": "node scripts/verify-data.mjs"
+  },
+  "dependencies": {
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.2",
+    "papaparse": "^5.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.12.7"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.2",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "vite": "^5.4.8"
+  }
+}
