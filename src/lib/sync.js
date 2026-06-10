@@ -40,6 +40,11 @@ function normalizeRow(profile, row, map) {
   // Prefer an explicit shift; otherwise infer from the CSR's roster shift.
   const shift = shiftCol !== 'Unassigned' ? shiftCol : csrShift(csr) || 'Unassigned'
   const clientRaw = firstNonEmpty(row, map.client)
+  // Follow Up 1/2/3 are sequential TRUE/FALSE checkboxes → a 0–3 touch count.
+  const fu = (idx) => /true/i.test(String(firstNonEmpty(row, idx)))
+  const followups = [map.followup1, map.followup2, map.followup3].reduce((n, idx) => n + (fu(idx) ? 1 : 0), 0)
+  const lcRaw = firstNonEmpty(row, map.lastContact)
+  const lcDate = parseDate(lcRaw)
   return {
     profile,
     client: looksLikeClient(clientRaw) ? String(clientRaw).replace(/\s+/g, ' ').trim() : '',
@@ -51,6 +56,9 @@ function normalizeRow(profile, row, map) {
     hasCsrColumn: !!map.csr,
     value: parseMoney(firstNonEmpty(row, map.value)),
     upsell: /true/i.test(String(firstNonEmpty(row, map.upsell))),
+    followups,
+    lastContact: dateKey(lcRaw),
+    lastContactTs: lcDate ? lcDate.getTime() : null,
     notes: String(firstNonEmpty(row, map.notes) || '').replace(/\s+/g, ' ').trim(),
     date: dateKey(dateRaw),
     ts: d ? d.getTime() : null,

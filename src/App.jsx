@@ -3,6 +3,7 @@ import { PROFILES, SHIFTS, UNASSIGNED } from './lib/config.js'
 import { loadCache, saveCache, syncAll } from './lib/sync.js'
 import {
   applyFilters,
+  byCountry,
   byCsr,
   byDay,
   byProfile,
@@ -10,12 +11,15 @@ import {
   byStatus,
   dataQuality,
   dateRangePreset,
+  followupStats,
   kpis,
   withRollingRate,
 } from './lib/metrics.js'
 import Gate, { isUnlocked } from './components/Gate.jsx'
 import TimeChart from './components/TimeChart.jsx'
 import DataQuality from './components/DataQuality.jsx'
+import FollowUps from './components/FollowUps.jsx'
+import CountryBreakdown from './components/CountryBreakdown.jsx'
 import ProfileTable from './components/ProfileTable.jsx'
 import ShiftBreakdown from './components/ShiftBreakdown.jsx'
 import StatusBreakdown from './components/StatusBreakdown.jsx'
@@ -142,11 +146,17 @@ export default function App() {
 
   const k = useMemo(() => kpis(filtered), [filtered])
   const kPrev = useMemo(() => kpis(prevFiltered), [prevFiltered])
-  const prof = useMemo(() => byProfile(filtered), [filtered])
+  // Show every profile (even all-zero ones); respect the profile filter if set.
+  const prof = useMemo(
+    () => byProfile(filtered, profiles.length ? profiles : PROFILES),
+    [filtered, profiles],
+  )
   const shiftRows = useMemo(() => byShift(filtered), [filtered])
+  const countryRows = useMemo(() => byCountry(filtered), [filtered])
   const daySeries = useMemo(() => withRollingRate(byDay(filtered)), [filtered])
   const csrData = useMemo(() => byCsr(filtered), [filtered])
   const statusRows = useMemo(() => byStatus(filtered), [filtered])
+  const fuStats = useMemo(() => followupStats(filtered), [filtered])
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
 
   // Data quality is checked over the full set (profile filter only) — date/shift
@@ -279,7 +289,7 @@ export default function App() {
             label="CSR logged"
             tone={k.csrLoggedPct < 50 ? 'warn' : 'default'}
             value={`${k.csrLoggedPct}%`}
-            sub="of inquiries attributed"
+            sub="have a CSR name recorded"
           />
         </div>
 
@@ -316,6 +326,9 @@ export default function App() {
             )}
           </div>
           <div className="lg:col-span-3">
+            <FollowUps stats={fuStats} />
+          </div>
+          <div className="lg:col-span-3">
             <DataQuality dq={dq} />
           </div>
           <div className="lg:col-span-2">
@@ -324,11 +337,14 @@ export default function App() {
           <div className="lg:col-span-1">
             <ShiftBreakdown rows={shiftRows} />
           </div>
+          <div className="lg:col-span-2">
+            <CsrLeaderboard data={csrData} />
+          </div>
           <div className="lg:col-span-1">
             <StatusBreakdown rows={statusRows} />
           </div>
-          <div className="lg:col-span-2">
-            <CsrLeaderboard data={csrData} />
+          <div className="lg:col-span-3">
+            <CountryBreakdown rows={countryRows} />
           </div>
         </div>
 

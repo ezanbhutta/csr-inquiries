@@ -39,6 +39,11 @@ await page.goto(url, { waitUntil: 'networkidle' })
 // Wait for the live sync to populate the KPI cards.
 await page.waitForFunction(() => /\d/.test(document.body.innerText) && document.body.innerText.includes('Conversion rate'), { timeout: 30000 }).catch(() => {})
 await page.waitForTimeout(2500)
-await page.screenshot({ path: out, fullPage: true })
+if (process.env.CLIP_TEXT) {
+  // Screenshot just the card containing the given text (for focused review).
+  await page.locator(`.card:has-text("${process.env.CLIP_TEXT}")`).first().screenshot({ path: out })
+} else {
+  await page.screenshot({ path: out, fullPage: true })
+}
 await browser.close()
 console.log('saved', out)
