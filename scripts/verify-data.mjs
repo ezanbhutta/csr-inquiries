@@ -1,12 +1,12 @@
 // Pull the live sheet through the real sync + metrics code and print a summary.
 // Run: npm run verify-data
 import { syncAll } from '../src/lib/sync.js'
-import { byProfile, byShift, byCsr, byStatus, byDay, kpis } from '../src/lib/metrics.js'
+import { byProfile, byShift, byCsr, byStatus, byDay, kpis, dataQuality } from '../src/lib/metrics.js'
 
 const fmt = (n) => n.toLocaleString('en-US')
 const bar = (v, max, w = 24) => '█'.repeat(Math.round((v / (max || 1)) * w))
 
-const { rows, perProfile, errors, syncedAt } = await syncAll({
+const { rows, orphans, perProfile, errors, syncedAt } = await syncAll({
   onProgress: (p) => process.stdout.write(`  ✓ ${p}\n`),
 })
 
@@ -64,6 +64,17 @@ const days = byDay(rows)
 console.log('\n=== TIME RANGE ===')
 console.log(`days with data: ${days.length}`)
 if (days.length) console.log(`first: ${days[0].date}   last: ${days[days.length - 1].date}`)
+
+console.log('\n=== DATA QUALITY (required fields) ===')
+const dq = dataQuality([...rows, ...orphans])
+console.log(`orphan rows (data but no Client Name): ${orphans.length}`)
+console.log(`inquiries with >=1 missing required field: ${fmt(dq.withIssues)} of ${fmt(dq.total)}`)
+Object.entries(dq.counts).forEach(([f, n]) => console.log(`  missing ${f.padEnd(13)} ${fmt(n)}`))
+if (dq.noCsrColumnProfiles.length) console.log(`  tabs with NO CSR column: ${dq.noCsrColumnProfiles.join(', ')}`)
+console.log('  worst rows:')
+dq.issues.slice(0, 8).forEach((r) =>
+  console.log(`    [${r.profile}] ${(r.client || '(no client)').padEnd(20)} ${r.date || '(no date)'} -> missing ${r.missing.join(', ')}`),
+)
 
 console.log('\n=== PER-PROFILE PARSE HEALTH ===')
 Object.entries(perProfile).forEach(([p, s]) =>

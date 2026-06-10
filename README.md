@@ -26,6 +26,9 @@ and the same password-gated sign-in — so the two dashboards feel like one prod
 - **By CSR** — *who wrote the query*, for the tabs where a CSR is recorded, with a
   coverage badge so you know how representative it is.
 - **Outcome mix** — the Order Status breakdown (Placed / Direct Order / Not Placed / …).
+- **Data quality** — flags any inquiry missing a **required** field (Date, Client Name,
+  Order Status, Shift, CSR), with per-field counts and a triaged list of the worst rows.
+  All other columns are still fetched, but a blank in them does not raise an error.
 - **Export PDF** — a one-page CEO summary.
 
 **Converted** = `Order Status ∈ { Placed, Direct Order }`.
