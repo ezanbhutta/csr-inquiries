@@ -1,7 +1,17 @@
 // Pull the live sheet through the real sync + metrics code and print a summary.
 // Run: npm run verify-data
 import { syncAll } from '../src/lib/sync.js'
-import { byProfile, byShift, byCsr, byStatus, byDay, kpis, dataQuality } from '../src/lib/metrics.js'
+import {
+  byProfile,
+  byShift,
+  byCsr,
+  byStatus,
+  byDay,
+  byCountry,
+  followupStats,
+  kpis,
+  dataQuality,
+} from '../src/lib/metrics.js'
 
 const fmt = (n) => n.toLocaleString('en-US')
 const bar = (v, max, w = 24) => '█'.repeat(Math.round((v / (max || 1)) * w))
@@ -59,6 +69,14 @@ c.leaderboard
       ).padStart(3)} | ${x.conversionRate}%`,
     ),
   )
+
+console.log('\n=== FOLLOW-UPS ===')
+const fu = followupStats(rows)
+fu.funnel.forEach((f) => console.log(`  ${f.touches} follow-ups: ${String(f.inquiries).padStart(4)} inq | ${f.conversionRate}% conv`))
+console.log(`open leads: ${fu.openTotal} | zero follow-ups: ${fu.zeroOpenPct}% | avg touches: ${fu.avgTouches} | due (<=21d): ${fu.due.length}`)
+
+console.log('\n=== TOP COUNTRIES ===')
+byCountry(rows, 10).forEach((c) => console.log(`  ${c.country.padEnd(20)} ${String(c.inquiries).padStart(4)} | ${c.conversionRate}%`))
 
 const days = byDay(rows)
 console.log('\n=== TIME RANGE ===')

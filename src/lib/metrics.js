@@ -78,13 +78,66 @@ const tally = (rows) => {
   return { inquiries, converted, conversionRate: pct(converted, inquiries), value }
 }
 
-export function byProfile(rows) {
+// Always lists every profile in `include` (default: all 10), with zeros for
+// profiles that have no inquiries in the current filter.
+export function byProfile(rows, include = PROFILES) {
   const order = new Map(PROFILES.map((p, i) => [p, i]))
   const groups = {}
   rows.forEach((r) => ((groups[r.profile] = groups[r.profile] || []).push(r)))
-  return Object.entries(groups)
-    .map(([profile, rs]) => ({ profile, ...tally(rs) }))
+  const names = include && include.length ? include : PROFILES
+  return names
+    .map((profile) => ({ profile, ...tally(groups[profile] || []) }))
     .sort((a, b) => (order.get(a.profile) ?? 99) - (order.get(b.profile) ?? 99))
+}
+
+export function byCountry(rows, topN = 12) {
+  const groups = {}
+  rows.forEach((r) => {
+    const c = r.country || 'Unknown'
+    ;(groups[c] = groups[c] || []).push(r)
+  })
+  return Object.entries(groups)
+    .map(([country, rs]) => ({ country, ...tally(rs) }))
+    .sort((a, b) => b.inquiries - a.inquiries)
+    .slice(0, topN)
+}
+
+// Follow-up requirements system. Follow Up 1/2/3 give a 0–3 touch count.
+// Open lead = Not Placed and not converted; best practice = keep following up.
+export function followupStats(rows, { dueWindowDays = 21 } = {}) {
+  const funnel = [0, 1, 2, 3].map((touches) => {
+    const rs = rows.filter((r) => (r.followups || 0) === touches)
+    return { touches, ...tally(rs) }
+  })
+  const open = rows.filter((r) => !r.converted && r.status === 'Not Placed')
+  const under = open.filter((r) => (r.followups || 0) < 3)
+  const zeroOpen = open.filter((r) => (r.followups || 0) === 0).length
+  const now = Date.now()
+  const daysSince = (r) => {
+    const ts = r.lastContactTs || r.ts
+    return ts ? Math.floor((now - ts) / 86_400_000) : null
+  }
+  const due = under
+    .map((r) => ({
+      profile: r.profile,
+      client: r.client,
+      followups: r.followups || 0,
+      daysSince: daysSince(r),
+      lastContact: r.lastContact,
+    }))
+    // Focus the queue on the actionable window; ancient open leads are dead.
+    .filter((r) => r.daysSince != null && r.daysSince <= dueWindowDays)
+    .sort((a, b) => b.daysSince - a.daysSince)
+  return {
+    funnel,
+    openTotal: open.length,
+    underCount: under.length,
+    zeroOpenPct: pct(zeroOpen, open.length),
+    avgTouches: open.length
+      ? Math.round((open.reduce((s, r) => s + (r.followups || 0), 0) / open.length) * 100) / 100
+      : 0,
+    due,
+  }
 }
 
 export function byShift(rows) {
