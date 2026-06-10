@@ -41,15 +41,15 @@ export default function ProfileTable({ rows }) {
           </thead>
           <tbody>
             {sorted.map((r) => (
-              <tr key={r.profile} className="hover:bg-white/[0.03]">
+              <tr key={r.profile} className="hover:bg-hover">
                 <td className="td">
-                  <div className="font-medium text-white/90">{r.profile}</div>
+                  <div className="font-medium text-ink">{r.profile}</div>
                   <div className="mt-1.5 w-32"><MiniBar value={r.inquiries} max={maxInq} /></div>
                 </td>
-                <td className="td text-right tabular-nums">{fmt(r.inquiries)}</td>
-                <td className="td text-right tabular-nums text-win">{fmt(r.converted)}</td>
+                <td className="td text-right tabular-nums text-ink">{fmt(r.inquiries)}</td>
+                <td className="td text-right tabular-nums text-mint">{fmt(r.converted)}</td>
                 <td className="td text-right"><RateBadge rate={r.conversionRate} /></td>
-                <td className="td text-right tabular-nums text-white/70">{money(r.value)}</td>
+                <td className="td text-right tabular-nums text-muted">{money(r.value)}</td>
               </tr>
             ))}
           </tbody>

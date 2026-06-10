@@ -12,12 +12,14 @@ const fixtures = process.env.FIXTURES ? JSON.parse(readFileSync(process.env.FIXT
 
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1440, height: 2000 }, deviceScaleFactor: 2 })
-// Pre-unlock the gate so we land straight on the dashboard.
-await page.addInitScript(() => {
-  try {
-    localStorage.setItem('csr-inquiries:gate', 'inquiries')
-  } catch {}
-})
+// Pre-unlock the gate so we land straight on the dashboard (unless NO_UNLOCK).
+if (!process.env.NO_UNLOCK) {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('csr-inquiries:gate', 'unlocked')
+    } catch {}
+  })
+}
 if (fixtures) {
   await page.addInitScript((map) => {
     const orig = window.fetch

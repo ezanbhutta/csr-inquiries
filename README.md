@@ -9,6 +9,10 @@ It reads the **Client Daily Inquiries** Google Sheet live (no backend, no manual
 export), normalizes the messy per-profile tabs, and shows conversion by profile, by
 day, by shift, and by CSR.
 
+It deliberately mirrors **CSR Pulse's design** — the HaseebMadeIt light theme
+(violet `#7229FF` on near-white `#FAFAFE`, Inter + Space Grotesk), the bar-mark logo,
+and the same password-gated sign-in — so the two dashboards feel like one product.
+
 ---
 
 ## What it shows
@@ -112,9 +116,12 @@ src/
     sync.js        fetch all tabs via gviz CSV, normalize, cache
     metrics.js     aggregations (by profile / day / shift / CSR / status)
     pdf.js         jsPDF CEO summary (lazy-loaded on export)
-  components/      Gate, KPIs, TimeChart, ProfileTable, ShiftBreakdown,
-                   StatusBreakdown, CsrLeaderboard, shared UI
+  components/      Gate, TimeChart, ProfileTable, ShiftBreakdown,
+                   StatusBreakdown, CsrLeaderboard, shared UI (incl. Logo)
+  assets/          haseebmadeit-logo.svg (the HaseebMadeIt bar-mark)
   App.jsx          state, sync, filters, layout
+public/
+  favicon.svg      HaseebMadeIt mark (browser tab icon)
 scripts/
   verify-data.mjs  live-sheet parse check
   screenshot.mjs   headless screenshot

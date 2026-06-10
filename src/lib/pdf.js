@@ -2,29 +2,30 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-const INK = [11, 16, 32]
-const ACCENT = [99, 102, 241]
-const MUTED = [120, 130, 160]
+const INK = [22, 10, 51]
+const ACCENT = [114, 41, 255] // HaseebMadeIt violet
+const MUTED = [139, 130, 168]
 
 export function exportSummaryPdf({ rangeLabel, kpis, profiles, shifts, csr, syncedAt }) {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' })
   const W = doc.internal.pageSize.getWidth()
   const money = (n) => '$' + Math.round(n || 0).toLocaleString('en-US')
 
-  // Header band
-  doc.setFillColor(...INK)
+  // Header band (brand violet)
+  doc.setFillColor(...ACCENT)
   doc.rect(0, 0, W, 88, 'F')
-  doc.setTextColor(...ACCENT)
+  doc.setTextColor(232, 222, 255)
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(10)
-  doc.text('CSR INQUIRIES', 40, 34)
+  doc.text('CSR INQUIRIES · HASEEBMADEIT', 40, 34)
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(20)
   doc.text('Daily Inquiry & Conversion Summary', 40, 58)
-  doc.setTextColor(...MUTED)
+  doc.setTextColor(214, 200, 246)
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(10)
   doc.text(rangeLabel, 40, 76)
+  void INK
 
   // KPI strip
   const kpiRow = [

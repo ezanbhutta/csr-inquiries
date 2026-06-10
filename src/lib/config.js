@@ -12,7 +12,8 @@ export const SHEET_ID =
   env.VITE_SHEET_ID || '1Pp6RhsR96FzGfB3MV--CYj7Idja2-iyF7BNPhJ9Md_A'
 
 // Light, client-side gate (not real security — see README). Override per deploy.
-export const DASH_PASSWORD = env.VITE_DASH_PASSWORD || 'inquiries'
+// Defaults to the CSR Pulse password so staff use one credential across both.
+export const DASH_PASSWORD = env.VITE_DASH_PASSWORD || 'Haseeb@0900#'
 
 // The 10 profile tabs, named exactly as they appear in the workbook.
 export const PROFILES = [

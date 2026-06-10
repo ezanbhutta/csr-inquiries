@@ -1,10 +1,11 @@
 import { Card, RateBadge, fmt } from './ui.jsx'
 
+// Shift accent colors mirror CSR Pulse.
 const TONE = {
-  Morning: '#f59e0b',
-  Evening: '#6366f1',
-  Night: '#0ea5e9',
-  Unassigned: '#64748b',
+  Morning: '#F59E0B',
+  Evening: '#0EA5E9',
+  Night: '#7229FF',
+  Unassigned: '#8B82A8',
 }
 
 export default function ShiftBreakdown({ rows }) {
@@ -17,15 +18,15 @@ export default function ShiftBreakdown({ rows }) {
           return (
             <div key={r.shift}>
               <div className="mb-1.5 flex items-center justify-between text-sm">
-                <span className="flex items-center gap-2 font-medium text-white/85">
+                <span className="flex items-center gap-2 font-medium text-ink">
                   <i className="h-2.5 w-2.5 rounded-full" style={{ background: TONE[r.shift] }} />
                   {r.shift}
                 </span>
-                <span className="text-white/50">
+                <span className="text-muted">
                   {fmt(r.inquiries)} inq · {fmt(r.converted)} won · <RateBadge rate={r.conversionRate} />
                 </span>
               </div>
-              <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-white/5">
+              <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-raised">
                 <div
                   className="h-full"
                   style={{ width: `${share}%`, background: TONE[r.shift] }}
@@ -35,7 +36,7 @@ export default function ShiftBreakdown({ rows }) {
             </div>
           )
         })}
-        {total === 0 && <div className="text-sm text-white/40">No inquiries in this range.</div>}
+        {total === 0 && <div className="text-sm text-dim">No inquiries in this range.</div>}
       </div>
     </Card>
   )
