@@ -225,7 +225,8 @@ export default function App() {
   const countryRows = useMemo(() => byCountry(filtered), [filtered])
   const daySeries = useMemo(() => withRollingRate(byDay(filtered)), [filtered])
   const statusRows = useMemo(() => byStatus(filtered), [filtered])
-  const fuStats = useMemo(() => followupStats(rows), [rows])
+  // Follow-ups, like Errors, only count inquiries from June 2026 onward.
+  const fuStats = useMemo(() => followupStats(rows.filter(inErrorScope)), [rows])
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
 
   const lostData = useMemo(() => lostReasons(filtered), [filtered])
@@ -433,8 +434,8 @@ export default function App() {
           <div className="mb-5">
             <h1 className="disp text-2xl font-bold text-ink">Follow-ups</h1>
             <p className="mt-0.5 text-sm text-muted">
-              Open (Not Placed) leads only — Placed &amp; Direct Orders are already won. Under 3
-              touches = active; 3 done with no response = closed. Search, filter and sort to work the queue.
+              Open (Not Placed) leads from <b>June 2026 onward</b> — Placed &amp; Direct Orders are already
+              won. Under 3 touches = active; 3 done with no response = closed. Search, filter and sort to work the queue.
             </p>
           </div>
           <FollowUps stats={fuStats} />

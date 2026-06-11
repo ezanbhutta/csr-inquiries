@@ -24,7 +24,7 @@ const PAGE = 40
 const MAX = 300
 
 export default function FollowUps({ stats }) {
-  const { leads, funnel, byProfile, openTotal, activeCount, closedCount, zeroOpenCount, zeroOpenPct, avgTouches } = stats
+  const { leads, funnel, byProfile, openTotal, activeCount, closedCount, zeroOpenCount, zeroOpenPct } = stats
   const [touch, setTouch] = useState(null) // null | 0 | 1 | 2 | 3
   const [profileF, setProfileF] = useState(null)
   const [q, setQ] = useState('')
@@ -51,6 +51,7 @@ export default function FollowUps({ stats }) {
   const shown = filtered.slice(0, expanded ? MAX : PAGE)
   const maxCount = Math.max(1, ...funnel.map((f) => f.count))
   const maxOpen = Math.max(1, ...byProfile.map((p) => p.open))
+  const totalZero = Math.max(1, byProfile.reduce((s, p) => s + p.zero, 0))
   const toggleSort = (key) =>
     setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: key === 'client' || key === 'profile' ? 1 : -1 }))
   const arrow = (key) => (sort.key === key ? (sort.dir < 0 ? ' ↓' : ' ↑') : '')
@@ -67,10 +68,9 @@ export default function FollowUps({ stats }) {
       </p>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Need follow-up" tone="accent" value={fmt(activeCount)} sub="open leads, under 3 touches" />
         <Stat label="Zero follow-ups" tone="warn" value={fmt(zeroOpenCount)} sub={`${zeroOpenPct}% of open leads`} />
-        <Stat label="Avg touches / lead" value={avgTouches} sub="across open leads" />
         <Stat label="Closed" value={fmt(closedCount)} sub="3 done, no response" />
       </div>
 
@@ -103,7 +103,7 @@ export default function FollowUps({ stats }) {
           </div>
         </Card>
 
-        <Card title="Coverage by profile" subtitle="Open leads and how many have had zero follow-ups">
+        <Card title="Coverage by profile" subtitle="Open leads per profile · the % is each profile's share of all zero-follow-up leads (adds to 100%)">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
@@ -112,7 +112,6 @@ export default function FollowUps({ stats }) {
                   <th className="th text-right">Open</th>
                   <th className="th text-right">0 follow-ups</th>
                   <th className="th text-right">Closed</th>
-                  <th className="th text-right">Avg</th>
                 </tr>
               </thead>
               <tbody>
@@ -129,11 +128,10 @@ export default function FollowUps({ stats }) {
                       </div>
                     </td>
                     <td className="td text-right tabular-nums text-ink">{fmt(p.open)}</td>
-                    <td className="td text-right tabular-nums">
-                      <span className={p.zeroPct >= 50 ? 'text-coral' : 'text-muted'}>{fmt(p.zero)} · {p.zeroPct}%</span>
+                    <td className="td text-right tabular-nums text-muted">
+                      {fmt(p.zero)} · {Math.round((p.zero / totalZero) * 100)}%
                     </td>
                     <td className="td text-right tabular-nums text-dim">{fmt(p.closed)}</td>
-                    <td className="td text-right tabular-nums text-muted">{p.avgTouches}</td>
                   </tr>
                 ))}
               </tbody>
