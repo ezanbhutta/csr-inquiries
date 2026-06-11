@@ -229,7 +229,8 @@ export default function App() {
   const fuStats = useMemo(() => followupStats(rows.filter(inErrorScope)), [rows])
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
 
-  const lostData = useMemo(() => lostReasons(filtered), [filtered])
+  // "Why leads don't convert" is June 2026 onward only (like Errors/Follow-ups).
+  const lostData = useMemo(() => lostReasons(rows.filter(inErrorScope)), [rows])
 
   // Errors: only inquiries from June 2026 onward (all profiles).
   const errorRecords = useMemo(() => [...rows, ...orphans].filter(inErrorScope), [rows, orphans])
