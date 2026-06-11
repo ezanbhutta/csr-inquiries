@@ -105,11 +105,13 @@ export function byCountry(rows, topN = 12) {
 // Follow-up requirements system. Follow Up 1/2/3 give a 0–3 touch count.
 // Open lead = Not Placed and not converted; best practice = keep following up.
 export function followupStats(rows, { dueWindowDays = 21 } = {}) {
+  // Placed & Direct Orders are already won — follow-ups don't apply, so they're
+  // excluded. Only open (Not Placed) leads are in scope.
+  const open = rows.filter((r) => r.status === 'Not Placed')
   const funnel = [0, 1, 2, 3].map((touches) => {
-    const rs = rows.filter((r) => (r.followups || 0) === touches)
-    return { touches, ...tally(rs) }
+    const count = open.filter((r) => (r.followups || 0) === touches).length
+    return { touches, count, share: pct(count, open.length) }
   })
-  const open = rows.filter((r) => !r.converted && r.status === 'Not Placed')
   const under = open.filter((r) => (r.followups || 0) < 3)
   const zeroOpen = open.filter((r) => (r.followups || 0) === 0).length
   const now = Date.now()
@@ -195,12 +197,15 @@ export function byStatus(rows) {
 // but optional (a blank doesn't raise an error).
 export const REQUIRED_FIELDS = ['Date', 'Client Name', 'Order Status', 'Shift', 'CSR']
 
-// Errors are only flagged for inquiries from this date onward (and undated rows).
-// Historical data before this is left alone.
+// Errors are only flagged for inquiries from June 2026 onward. Everything before
+// is left alone, and rows that can't be confirmed to be June+ are not shown.
+// A row's date is its inquiry Date, falling back to Last Contact only when Date
+// is blank (so a June row with a missing date still surfaces, but undated/older
+// rows never do).
 export const ERRORS_SINCE = '2026-06-01'
 export const inErrorScope = (r) => {
   const eff = r.date || r.lastContact
-  return !eff || eff >= ERRORS_SINCE
+  return eff != null && eff >= ERRORS_SINCE
 }
 
 export function missingRequired(r) {
