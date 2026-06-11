@@ -34,7 +34,7 @@ function Chip({ label }) {
 
 const LIMIT = 25
 
-export default function DataQuality({ dq }) {
+export default function DataQuality({ dq, scope }) {
   const [expanded, setExpanded] = useState(false)
   const { total, withIssues, counts, issues, noCsrColumnProfiles } = dq
   const allClean = withIssues === 0
@@ -43,7 +43,7 @@ export default function DataQuality({ dq }) {
   return (
     <Card
       title="Data quality"
-      subtitle="Required on every inquiry: Date · Client Name · Order Status · Shift · CSR (across all dates & shifts)"
+      subtitle={`Required on every inquiry: Date · Client Name · Order Status · Shift · CSR${scope ? ` · ${scope}` : ''}`}
       right={
         <span
           className={`pill ${allClean ? 'border-mint/50 text-mint' : 'border-coral/50 text-coral'}`}

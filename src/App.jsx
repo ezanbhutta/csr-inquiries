@@ -4,7 +4,6 @@ import { loadCache, saveCache, syncAll } from './lib/sync.js'
 import {
   applyFilters,
   byCountry,
-  byCsr,
   byDay,
   byProfile,
   byShift,
@@ -12,6 +11,7 @@ import {
   dataQuality,
   dateRangePreset,
   followupStats,
+  inErrorScope,
   kpis,
   withRollingRate,
 } from './lib/metrics.js'
@@ -23,7 +23,6 @@ import CountryBreakdown from './components/CountryBreakdown.jsx'
 import ProfileTable from './components/ProfileTable.jsx'
 import ShiftBreakdown from './components/ShiftBreakdown.jsx'
 import StatusBreakdown from './components/StatusBreakdown.jsx'
-import CsrLeaderboard from './components/CsrLeaderboard.jsx'
 import { Logo, Stat, fmt, money } from './components/ui.jsx'
 
 const RANGES = [
@@ -111,6 +110,9 @@ export default function App() {
   const [preset, setPreset] = useState('30d')
   const [profiles, setProfiles] = useState([])
   const [shifts, setShifts] = useState([])
+  const [view, setView] = useState(() =>
+    typeof location !== 'undefined' && location.hash === '#errors' ? 'errors' : 'dashboard',
+  )
 
   const refresh = async () => {
     setLoading(true)
@@ -133,6 +135,12 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unlocked])
 
+  useEffect(() => {
+    const h = () => setView(location.hash === '#errors' ? 'errors' : 'dashboard')
+    window.addEventListener('hashchange', h)
+    return () => window.removeEventListener('hashchange', h)
+  }, [])
+
   const range = useMemo(() => dateRangePreset(preset, rows), [preset, rows])
   const filtered = useMemo(
     () => applyFilters(rows, { profiles, shifts, from: range.from, to: range.to }),
@@ -146,7 +154,6 @@ export default function App() {
 
   const k = useMemo(() => kpis(filtered), [filtered])
   const kPrev = useMemo(() => kpis(prevFiltered), [prevFiltered])
-  // Show every profile (even all-zero ones); respect the profile filter if set.
   const prof = useMemo(
     () => byProfile(filtered, profiles.length ? profiles : PROFILES),
     [filtered, profiles],
@@ -154,17 +161,15 @@ export default function App() {
   const shiftRows = useMemo(() => byShift(filtered), [filtered])
   const countryRows = useMemo(() => byCountry(filtered), [filtered])
   const daySeries = useMemo(() => withRollingRate(byDay(filtered)), [filtered])
-  const csrData = useMemo(() => byCsr(filtered), [filtered])
   const statusRows = useMemo(() => byStatus(filtered), [filtered])
   const fuStats = useMemo(() => followupStats(filtered), [filtered])
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
 
-  // Data quality is checked over the full set (profile filter only) — date/shift
-  // filters would hide the very rows that are missing a date or shift.
-  const dq = useMemo(() => {
-    const pick = (arr) => (profiles.length ? arr.filter((r) => profiles.includes(r.profile)) : arr)
-    return dataQuality([...pick(rows), ...pick(orphans)])
-  }, [rows, orphans, profiles])
+  // Errors: only inquiries from June 2026 onward (all profiles).
+  const errorsDq = useMemo(
+    () => dataQuality([...rows, ...orphans].filter(inErrorScope)),
+    [rows, orphans],
+  )
 
   if (!unlocked) return <Gate onUnlock={() => setUnlocked(true)} />
 
@@ -173,6 +178,28 @@ export default function App() {
       ? `All time${range.from ? ` (${range.from} → ${range.to})` : ''}`
       : `${RANGES.find((r) => r[0] === preset)[1]} · ${range.from} → ${range.to}`
 
+  const go = (v) => {
+    location.hash = v === 'errors' ? '#errors' : ''
+    setView(v)
+  }
+
+  const exportPdf = async () => {
+    setExporting(true)
+    try {
+      const { exportSummaryPdf } = await import('./lib/pdf.js')
+      exportSummaryPdf({
+        rangeLabel,
+        kpis: k,
+        profiles: prof,
+        shifts: shiftRows,
+        csr: { leaderboard: [], logged: 0, total: 0 },
+        syncedAt: syncedAt || Date.now(),
+      })
+    } finally {
+      setExporting(false)
+    }
+  }
+
   return (
     <div className="min-h-screen">
       {/* Header */}
@@ -180,179 +207,146 @@ export default function App() {
         className="sticky top-0 z-30 border-b border-line backdrop-blur-xl"
         style={{ background: 'rgba(250,250,254,0.9)' }}
       >
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3.5 sm:px-6">
-          <div className="flex items-center gap-3">
-            <Logo size={40} />
-            <div>
-              <div className="disp text-lg font-bold leading-tight text-ink">CSR Inquiries</div>
-              <div className="text-[9px] font-semibold uppercase tracking-[0.2em] text-brand">
-                HaseebMadeIt
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-5">
+            <div className="flex items-center gap-3">
+              <Logo size={40} />
+              <div>
+                <div className="disp text-lg font-bold leading-tight text-ink">CSR Inquiries</div>
+                <div className="text-[9px] font-semibold uppercase tracking-[0.2em] text-brand">
+                  HaseebMadeIt
+                </div>
               </div>
             </div>
+            <nav className="flex items-center gap-1 rounded-lg border border-line bg-raised p-1">
+              <button className={`seg ${view === 'dashboard' ? 'seg-on' : ''}`} onClick={() => go('dashboard')}>
+                Dashboard
+              </button>
+              <button
+                className={`seg ${view === 'errors' ? 'seg-on' : ''}`}
+                onClick={() => go('errors')}
+              >
+                Errors
+                {errorsDq.withIssues > 0 && (
+                  <span className="ml-1.5 rounded-full bg-coral px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    {fmt(errorsDq.withIssues)}
+                  </span>
+                )}
+              </button>
+            </nav>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button className="btn" onClick={refresh} disabled={loading}>
               {loading ? 'Syncing…' : '↻ Refresh'}
             </button>
-            <button
-              className="btn btn-accent"
-              disabled={exporting || rows.length === 0}
-              onClick={async () => {
-                setExporting(true)
-                try {
-                  const { exportSummaryPdf } = await import('./lib/pdf.js')
-                  exportSummaryPdf({
-                    rangeLabel,
-                    kpis: k,
-                    profiles: prof,
-                    shifts: shiftRows,
-                    csr: csrData,
-                    syncedAt: syncedAt || Date.now(),
-                  })
-                } finally {
-                  setExporting(false)
-                }
-              }}
-            >
+            <button className="btn btn-accent" disabled={exporting || rows.length === 0} onClick={exportPdf}>
               {exporting ? 'Preparing…' : '⬇ Export PDF'}
             </button>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-        <div className="mb-5">
-          <h1 className="disp text-2xl font-bold text-ink">Daily inquiry &amp; conversion</h1>
-          <p className="mt-0.5 text-sm text-muted">
-            {syncedAt ? `Synced ${new Date(syncedAt).toLocaleString()}` : 'Loading…'}
-            {' · '}
-            {fmt(rows.length)} inquiries across {PROFILES.length} profiles
-          </p>
-        </div>
+      {view === 'errors' ? (
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          <div className="mb-5">
+            <h1 className="disp text-2xl font-bold text-ink">Errors</h1>
+            <p className="mt-0.5 text-sm text-muted">
+              Inquiries from <b>June 2026 onward</b> that are missing a required field
+              (Date, Client Name, Order Status, Shift, CSR). Earlier data isn’t checked, and every
+              other column is optional — a blank there never errors.
+            </p>
+          </div>
+          <DataQuality dq={errorsDq} scope="June 2026 onward" />
+        </main>
+      ) : (
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          <div className="mb-5">
+            <h1 className="disp text-2xl font-bold text-ink">Daily inquiry &amp; conversion</h1>
+            <p className="mt-0.5 text-sm text-muted">
+              {syncedAt ? `Synced ${new Date(syncedAt).toLocaleString()}` : 'Loading…'}
+              {' · '}
+              {fmt(rows.length)} inquiries across {PROFILES.length} profiles
+            </p>
+          </div>
 
-        {/* Controls */}
-        <div className="mb-6 flex flex-wrap items-center gap-2">
-          <div className="flex rounded-lg border border-line bg-raised p-1">
-            {RANGES.map(([key, label]) => (
-              <button
-                key={key}
-                className={`seg ${preset === key ? 'seg-on' : ''}`}
-                onClick={() => setPreset(key)}
-              >
-                {label}
-              </button>
-            ))}
+          {/* Controls */}
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            <div className="flex rounded-lg border border-line bg-raised p-1">
+              {RANGES.map(([key, label]) => (
+                <button
+                  key={key}
+                  className={`seg ${preset === key ? 'seg-on' : ''}`}
+                  onClick={() => setPreset(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <FilterMenu label="Profiles" allLabel="All profiles" options={PROFILES} selected={profiles} onChange={setProfiles} />
+            <FilterMenu label="Shift" allLabel="All shifts" options={SHIFT_OPTS} selected={shifts} onChange={setShifts} />
           </div>
-          <FilterMenu
-            label="Profiles"
-            allLabel="All profiles"
-            options={PROFILES}
-            selected={profiles}
-            onChange={setProfiles}
-          />
-          <FilterMenu
-            label="Shift"
-            allLabel="All shifts"
-            options={SHIFT_OPTS}
-            selected={shifts}
-            onChange={setShifts}
-          />
-        </div>
 
-        {errors.length > 0 && (
-          <div className="mb-4 rounded-xl border border-amber/40 bg-amber/10 px-4 py-2 text-sm text-amber">
-            Some tabs didn’t load: {errors.join('; ')}
-          </div>
-        )}
+          {errors.length > 0 && (
+            <div className="mb-4 rounded-xl border border-amber/40 bg-amber/10 px-4 py-2 text-sm text-amber">
+              Some tabs didn’t load: {errors.join('; ')}
+            </div>
+          )}
 
-        {/* KPIs */}
-        <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
-          <Stat
-            label="Inquiries"
-            value={fmt(k.inquiries)}
-            sub={<Delta now={k.inquiries} prev={prevRange ? kPrev.inquiries : null} />}
-          />
-          <Stat
-            label="Converted"
-            tone="win"
-            value={fmt(k.converted)}
-            sub={<Delta now={k.converted} prev={prevRange ? kPrev.converted : null} />}
-          />
-          <Stat
-            label="Conversion rate"
-            tone="accent"
-            value={`${k.conversionRate}%`}
-            sub={<Delta now={k.conversionRate} prev={prevRange ? kPrev.conversionRate : null} suffix=" pts" />}
-          />
-          <Stat label="Won value" value={money(k.convertedValue)} sub={`Avg deal ${money(k.avgDealValue)}`} />
-          <Stat
-            label="CSR logged"
-            tone={k.csrLoggedPct < 50 ? 'warn' : 'default'}
-            value={`${k.csrLoggedPct}%`}
-            sub="have a CSR name recorded"
-          />
-        </div>
+          {/* KPIs (conversion is what matters: by profile / date / shift below) */}
+          <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <Stat
+              label="Inquiries"
+              value={fmt(k.inquiries)}
+              sub={<Delta now={k.inquiries} prev={prevRange ? kPrev.inquiries : null} />}
+            />
+            <Stat
+              label="Converted"
+              tone="win"
+              value={fmt(k.converted)}
+              sub={<Delta now={k.converted} prev={prevRange ? kPrev.converted : null} />}
+            />
+            <Stat
+              label="Conversion rate"
+              tone="accent"
+              value={`${k.conversionRate}%`}
+              sub={<Delta now={k.conversionRate} prev={prevRange ? kPrev.conversionRate : null} suffix=" pts" />}
+            />
+            <Stat label="Won value" value={money(k.convertedValue)} sub={`Avg deal ${money(k.avgDealValue)}`} />
+          </div>
 
-        {/* Data quality banner */}
-        {dq.withIssues > 0 ? (
-          <div
-            className="mb-6 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm"
-            style={{ background: '#FDE9E9', borderColor: '#F6BCBC', color: '#B42318' }}
-          >
-            <span className="mt-0.5">⚠</span>
-            <span>
-              <b>{fmt(dq.withIssues)}</b> {dq.withIssues === 1 ? 'inquiry is' : 'inquiries are'} missing a
-              required field (Date, Client Name, Order Status, Shift, or CSR). See <b>Data quality</b> below.
-            </span>
+          {/* Charts & tables */}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-3">
+              <TimeChart data={daySeries} />
+              {datedCount < k.inquiries && (
+                <p className="mt-1.5 px-1 text-xs text-dim">
+                  {fmt(k.inquiries - datedCount)} inquiries without a parseable date are excluded from the chart but counted everywhere else.
+                </p>
+              )}
+            </div>
+            <div className="lg:col-span-3">
+              <FollowUps stats={fuStats} />
+            </div>
+            <div className="lg:col-span-2">
+              <ProfileTable rows={prof} />
+            </div>
+            <div className="lg:col-span-1">
+              <ShiftBreakdown rows={shiftRows} />
+            </div>
+            <div className="lg:col-span-2">
+              <CountryBreakdown rows={countryRows} />
+            </div>
+            <div className="lg:col-span-1">
+              <StatusBreakdown rows={statusRows} />
+            </div>
           </div>
-        ) : rows.length > 0 ? (
-          <div
-            className="mb-6 flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm"
-            style={{ background: '#E7F8F1', borderColor: '#B6E8D4', color: '#0F7A52' }}
-          >
-            <span>✓</span>
-            <span>All inquiries have the required fields (Date, Client Name, Order Status, Shift, CSR).</span>
-          </div>
-        ) : null}
 
-        {/* Charts & tables */}
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-3">
-            <TimeChart data={daySeries} />
-            {datedCount < k.inquiries && (
-              <p className="mt-1.5 px-1 text-xs text-dim">
-                {fmt(k.inquiries - datedCount)} inquiries without a parseable date are excluded from the chart but counted everywhere else.
-              </p>
-            )}
-          </div>
-          <div className="lg:col-span-3">
-            <FollowUps stats={fuStats} />
-          </div>
-          <div className="lg:col-span-3">
-            <DataQuality dq={dq} />
-          </div>
-          <div className="lg:col-span-2">
-            <ProfileTable rows={prof} />
-          </div>
-          <div className="lg:col-span-1">
-            <ShiftBreakdown rows={shiftRows} />
-          </div>
-          <div className="lg:col-span-2">
-            <CsrLeaderboard data={csrData} />
-          </div>
-          <div className="lg:col-span-1">
-            <StatusBreakdown rows={statusRows} />
-          </div>
-          <div className="lg:col-span-3">
-            <CountryBreakdown rows={countryRows} />
-          </div>
-        </div>
-
-        <footer className="mt-8 border-t border-line pt-4 text-xs text-dim">
-          Source: <span className="text-muted">Client Daily Inquiries</span> Google Sheet · Converted = Placed + Direct Order ·
-          Shift = when the inquiry came in · Business day rolls at 5 AM PKT.
-        </footer>
-      </main>
+          <footer className="mt-8 border-t border-line pt-4 text-xs text-dim">
+            Source: <span className="text-muted">Client Daily Inquiries</span> Google Sheet · Converted = Placed + Direct Order ·
+            Conversion shown by profile, date &amp; shift · Shift = when the inquiry came in · Business day rolls at 5 AM PKT.
+          </footer>
+        </main>
+      )}
     </div>
   )
 }

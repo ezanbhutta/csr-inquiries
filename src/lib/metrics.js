@@ -195,6 +195,14 @@ export function byStatus(rows) {
 // but optional (a blank doesn't raise an error).
 export const REQUIRED_FIELDS = ['Date', 'Client Name', 'Order Status', 'Shift', 'CSR']
 
+// Errors are only flagged for inquiries from this date onward (and undated rows).
+// Historical data before this is left alone.
+export const ERRORS_SINCE = '2026-06-01'
+export const inErrorScope = (r) => {
+  const eff = r.date || r.lastContact
+  return !eff || eff >= ERRORS_SINCE
+}
+
 export function missingRequired(r) {
   const m = []
   if (!r.date) m.push('Date')
