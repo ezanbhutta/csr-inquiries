@@ -191,11 +191,13 @@ export default function App() {
   )
 
   // Per-profile / per-shift log: every inquiry, newest first (undated last).
+  // Includes rows whose client name is missing (shown as "missing"), so nothing
+  // is skipped — they're flagged for fixing rather than dropped.
   const logRows = useMemo(() => {
     if (route.view !== 'log') return []
     const match = route.logType === 'shift' ? (r) => r.shift === route.logValue : (r) => r.profile === route.logValue
-    return rows.filter(match).sort((a, b) => (b.ts ?? -Infinity) - (a.ts ?? -Infinity))
-  }, [rows, route])
+    return [...rows, ...orphans].filter(match).sort((a, b) => (b.ts ?? -Infinity) - (a.ts ?? -Infinity))
+  }, [rows, orphans, route])
 
   if (!unlocked) return <Gate onUnlock={() => setUnlocked(true)} />
 
