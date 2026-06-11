@@ -161,14 +161,19 @@ export function matchCsr(raw) {
   const firstWord = firstChunk.split(/\s+/)[0]
   if (!firstWord) return null
   // Reject obvious non-names that bleed into the CSR column.
-  if (/^(false|true|morning|evening|night|placed|not|waiting|closed|meeting|budget|date|client|response|in|out)$/.test(firstWord))
+  if (/^(false|true|morning|evening|night|placed|not|waiting|closed|meeting|budget|date|client|response|in|out|no|yes|na|none|nil|tbd|done|pending|new|old|spam|scam)$/.test(firstWord))
     return null
   if (CSR_ALIASES[firstWord]) return CSR_ALIASES[firstWord]
   if (CSR_ALIASES[firstChunk]) return CSR_ALIASES[firstChunk]
   const byRoster = ROSTER_FLAT.find(
     (n) => n.toLowerCase() === firstChunk || n.toLowerCase().split(/\s+/)[0] === firstWord,
   )
-  return byRoster || null
+  if (byRoster) return byRoster
+  // A filled cell with a plausible (alphabetic) name that just isn't in the
+  // roster yet — e.g. "Zaheen" — is still a recorded CSR. Keep it (Title Case)
+  // so it's attributed and not wrongly flagged as missing. Reject digits/initials.
+  if (/\d/.test(firstChunk) || firstChunk.replace(/[^a-z]/g, '').length < 2) return null
+  return firstChunk.replace(/\b\w/g, (m) => m.toUpperCase())
 }
 
 export const csrShift = (canonicalCsr) =>
