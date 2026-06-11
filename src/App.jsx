@@ -222,7 +222,8 @@ export default function App() {
     [filtered, profiles],
   )
   const shiftRows = useMemo(() => byShift(filtered), [filtered])
-  const countryRows = useMemo(() => byCountry(filtered), [filtered])
+  // By country is June 2026 onward only (like Errors/Follow-ups/lost-reasons).
+  const countryRows = useMemo(() => byCountry(rows.filter(inErrorScope)), [rows])
   const daySeries = useMemo(() => withRollingRate(byDay(filtered)), [filtered])
   const statusRows = useMemo(() => byStatus(filtered), [filtered])
   // Follow-ups, like Errors, only count inquiries from June 2026 onward.

@@ -3,7 +3,7 @@ import { Card, RateBadge, fmt } from './ui.jsx'
 export default function CountryBreakdown({ rows, onSelect }) {
   const max = Math.max(1, ...rows.map((r) => r.inquiries))
   return (
-    <Card title="By country" subtitle="Top 12 · click a country to open its log">
+    <Card title="By country" subtitle="June 2026 onward · top 12 · click a country to open its log">
       {rows.length === 0 ? (
         <div className="text-sm text-dim">No inquiries in this range.</div>
       ) : (

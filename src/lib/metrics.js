@@ -309,19 +309,20 @@ const LOST_REASONS = [
     /ano(?:t)?her\s*(?:seller|designer|buyer|agency|provider|side)|cho(?:o|0)?se?d?\s*another|hired\s+\w+\s*(?:seller|designer|buyer)?|(?:better|other)\s*(?:option|seller|designer|buyer)|found\s*(?:a\s*)?better|(?:go|gon|going|went|move\w*)\s*(?:forward\s*)?with\s*another|select\w*\s*another|order\s*plac\w*\s*(?:to\s*)?(?:the\s*)?another|plac\w*\s*the\s*order\s*(?:to|another)/i,
   ],
   ['Budget', /budg|afford|expensiv|too\s*(?:much|high|costly|low)|low\s*-?ball|price\s*(?:too|is|was|high)|out\s*of\s*budget/i],
-  ['No response', /\bno+\s*response|not\s*respond|not\s*repl|\bno\s*repl|did?\s*n.?t\s*repl|no\s*answer|not\s*response\b/i],
   ['Meeting', /meeting|zoom|google\s*meet|\bcall\s*(?:schedul|set|book)|schedul\w*\s*(?:a\s*)?(?:call|meeting)/i],
   ['Custom offer', /offer|quote|package|pricing/i],
   ['Following up', /follow.?up/i],
   [
-    'Awaiting reply',
-    /await|wait\w*|wat[ie]ng|witing|wting|respons|respon|resposne|repon\w*|feedback|final\s*reply|first\s*response|client\s*respo|for\s*(?:his|her|the|client'?s?)?\s*-?\s*respon|get\s*back\s*to\s*you|need(?:s)?\s*(?:some\s*)?time|ask\w*\s*for\s*(?:some\s*)?time|i\s*will\s*confirm|in\s*process|on\s*cr\b|chat\s*continue/i,
+    // "Awaiting reply" and "no response" are the same outcome — the client
+    // hasn't replied — so they're one reason.
+    'No response',
+    /await|wait\w*|wat[ie]ng|witing|wting|respons|respon|resposne|repon\w*|feedback|final\s*reply|first\s*response|client\s*respo|\bno+\s*response|not\s*respond|not\s*repl|\bno\s*repl|did?\s*n.?t\s*repl|no\s*answer|for\s*(?:his|her|the|client'?s?)?\s*-?\s*respon|get\s*back\s*to\s*you|need(?:s)?\s*(?:some\s*)?time|ask\w*\s*for\s*(?:some\s*)?time|i\s*will\s*confirm|in\s*process|on\s*cr\b|chat\s*continue/i,
   ],
 ]
 export function classifyLostReason(notes) {
   const s = String(notes || '')
   for (const [reason, re] of LOST_REASONS) if (re.test(s)) return reason
-  return s.trim() ? 'Other' : 'Unspecified'
+  return s.trim() ? 'Other' : 'No note'
 }
 export function lostReasons(rows) {
   const lost = rows.filter((r) => !r.converted && r.status === 'Not Placed')

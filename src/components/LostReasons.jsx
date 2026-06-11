@@ -2,11 +2,14 @@ import { Card, fmt } from './ui.jsx'
 
 const TONE = {
   'No response': '#8B82A8',
+  'Chose another seller': '#0EA5E9',
   Budget: '#F59E0B',
-  'Out of scope': '#0EA5E9',
   'Scam / Spam': '#EF4444',
+  'Custom offer': '#7229FF',
+  Meeting: '#10B981',
+  'Following up': '#9F66FF',
   Other: '#A99FC4',
-  Unspecified: '#C4BDD8',
+  'No note': '#C4BDD8',
 }
 
 // Why "Not Placed" leads didn't convert, inferred from the Notes text.
