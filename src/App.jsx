@@ -447,8 +447,6 @@ export default function App() {
             <h1 className="disp text-2xl font-bold text-ink">Daily inquiry &amp; conversion</h1>
             <p className="mt-0.5 text-sm text-muted">
               {syncedAt ? `Synced ${new Date(syncedAt).toLocaleString()}` : 'Loading…'}
-              {' · '}
-              {fmt(rows.length)} inquiries across {PROFILES.length} profiles
             </p>
           </div>
 
