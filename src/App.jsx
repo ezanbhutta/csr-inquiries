@@ -11,9 +11,11 @@ import {
   byStatus,
   dataQuality,
   dateRangePreset,
+  duplicateClients,
   followupStats,
   inErrorScope,
   kpis,
+  lostReasons,
   withRollingRate,
 } from './lib/metrics.js'
 import Gate, { isUnlocked } from './components/Gate.jsx'
@@ -22,6 +24,8 @@ import DataQuality from './components/DataQuality.jsx'
 import FollowUps from './components/FollowUps.jsx'
 import LogPage from './components/LogPage.jsx'
 import CountryBreakdown from './components/CountryBreakdown.jsx'
+import LostReasons from './components/LostReasons.jsx'
+import DuplicateClients from './components/DuplicateClients.jsx'
 import DateRangePicker from './components/DateRangePicker.jsx'
 import ProfileTable from './components/ProfileTable.jsx'
 import ShiftBreakdown from './components/ShiftBreakdown.jsx'
@@ -38,13 +42,15 @@ const PRESET_LABELS = {
   custom: 'Custom',
 }
 
+const LOG_LABEL = { profile: 'Profile', shift: 'Shift', country: 'Country', status: 'Status', date: 'Day', client: 'Client' }
+
 const parseHash = () => {
   const h = ((typeof location !== 'undefined' && location.hash) || '').replace(/^#/, '')
   if (h === 'errors') return { view: 'errors' }
   if (h === 'followups') return { view: 'followups' }
   if (h.startsWith('log/')) {
     const parts = h.split('/')
-    return { view: 'log', logType: parts[1] === 'shift' ? 'shift' : 'profile', logValue: decodeURIComponent(parts.slice(2).join('/')) }
+    return { view: 'log', logType: parts[1] || 'profile', logValue: decodeURIComponent(parts.slice(2).join('/')) }
   }
   return { view: 'dashboard' }
 }
@@ -184,18 +190,43 @@ export default function App() {
   const fuStats = useMemo(() => followupStats(rows), [rows])
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
 
-  // Errors: only inquiries from June 2026 onward (all profiles).
-  const errorsDq = useMemo(
-    () => dataQuality([...rows, ...orphans].filter(inErrorScope)),
-    [rows, orphans],
-  )
+  const lostData = useMemo(() => lostReasons(filtered), [filtered])
 
-  // Per-profile / per-shift log: every inquiry, newest first (undated last).
-  // Includes rows whose client name is missing (shown as "missing"), so nothing
-  // is skipped — they're flagged for fixing rather than dropped.
+  // Errors: only inquiries from June 2026 onward (all profiles).
+  const errorRecords = useMemo(() => [...rows, ...orphans].filter(inErrorScope), [rows, orphans])
+  const errorsDq = useMemo(() => dataQuality(errorRecords), [errorRecords])
+  const errorDupes = useMemo(() => duplicateClients(errorRecords), [errorRecords])
+
+  // What changed today (business day, 5 AM PKT cutoff).
+  const todayKey = businessDayTodayKey()
+  const todayStats = useMemo(() => {
+    const t = rows.filter((r) => r.date === todayKey)
+    const converted = t.filter((r) => r.converted).length
+    const d = new Date(todayKey + 'T00:00:00Z')
+    d.setUTCDate(d.getUTCDate() - 1)
+    const yInq = rows.filter((r) => r.date === d.toISOString().slice(0, 10)).length
+    return {
+      inquiries: t.length,
+      converted,
+      rate: t.length ? Math.round((converted / t.length) * 1000) / 10 : 0,
+      yInq,
+    }
+  }, [rows, todayKey])
+
+  // Drill-down log: every inquiry for a profile / shift / country / status / day
+  // / client, newest first. Includes missing-client rows (shown as "missing").
   const logRows = useMemo(() => {
     if (route.view !== 'log') return []
-    const match = route.logType === 'shift' ? (r) => r.shift === route.logValue : (r) => r.profile === route.logValue
+    const v = route.logValue
+    const matchers = {
+      profile: (r) => r.profile === v,
+      shift: (r) => r.shift === v,
+      country: (r) => r.country === v,
+      status: (r) => (r.status || 'No status') === v,
+      date: (r) => r.date === v,
+      client: (r) => (r.client || '').toLowerCase() === String(v).toLowerCase(),
+    }
+    const match = matchers[route.logType] || matchers.profile
     return [...rows, ...orphans].filter(match).sort((a, b) => (b.ts ?? -Infinity) - (a.ts ?? -Infinity))
   }, [rows, orphans, route])
 
@@ -293,7 +324,7 @@ export default function App() {
             <div>
               <h1 className="disp text-2xl font-bold text-ink">{route.logValue}</h1>
               <p className="mt-0.5 text-sm text-muted">
-                Full inquiry log · {route.logType === 'shift' ? 'Shift' : 'Profile'} · newest first
+                Full inquiry log · {LOG_LABEL[route.logType] || 'Profile'} · newest first
               </p>
             </div>
           </div>
@@ -309,15 +340,18 @@ export default function App() {
               other column is optional — a blank there never errors.
             </p>
           </div>
-          <DataQuality dq={errorsDq} scope="June 2026 onward" />
+          <div className="space-y-4">
+            <DataQuality dq={errorsDq} scope="June 2026 onward" />
+            <DuplicateClients groups={errorDupes} onSelect={(c) => openLog('client', c)} />
+          </div>
         </main>
       ) : view === 'followups' ? (
         <main className="mx-auto max-w-[88rem] px-4 py-6 sm:px-6">
           <div className="mb-5">
             <h1 className="disp text-2xl font-bold text-ink">Follow-ups</h1>
             <p className="mt-0.5 text-sm text-muted">
-              Open (Not Placed) leads only — Placed &amp; Direct Orders are already won. Work the
-              queue: search, filter by touches or profile, and sort by who's been waiting longest.
+              Open (Not Placed) leads only — Placed &amp; Direct Orders are already won. Under 3
+              touches = active; 3 done with no response = closed. Search, filter and sort to work the queue.
             </p>
           </div>
           <FollowUps stats={fuStats} />
@@ -331,6 +365,35 @@ export default function App() {
               {' · '}
               {fmt(rows.length)} inquiries across {PROFILES.length} profiles
             </p>
+          </div>
+
+          {/* What changed today */}
+          <div className="mb-5 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-line bg-card px-4 py-3 text-sm">
+            <span className="flex items-center gap-2">
+              <span className="font-semibold text-ink">Today</span>
+              <span className="text-dim">
+                {new Date(todayKey + 'T00:00:00Z').toLocaleDateString('en-US', { day: 'numeric', month: 'short', timeZone: 'UTC' })}
+              </span>
+            </span>
+            <span className="text-muted"><b className="text-ink">{fmt(todayStats.inquiries)}</b> inquiries</span>
+            <span className="text-muted"><b className="text-mint">{fmt(todayStats.converted)}</b> converted</span>
+            <span className="text-muted"><b className="text-brand">{todayStats.rate}%</b> conversion</span>
+            {todayStats.yInq > 0 && todayStats.inquiries !== todayStats.yInq && (
+              <span className={todayStats.inquiries > todayStats.yInq ? 'text-mint' : 'text-coral'}>
+                {todayStats.inquiries > todayStats.yInq ? '▲' : '▼'} {Math.abs(todayStats.inquiries - todayStats.yInq)} vs yesterday
+              </span>
+            )}
+            <span className="flex flex-wrap gap-2 sm:ml-auto">
+              <button onClick={() => go('followups')} className="pill border-amber/40 text-amber">
+                {fmt(fuStats.activeCount)} need follow-up
+              </button>
+              <button
+                onClick={() => go('errors')}
+                className={`pill ${errorsDq.withIssues ? 'border-coral/40 text-coral' : 'border-mint/50 text-mint'}`}
+              >
+                {fmt(errorsDq.withIssues)} errors
+              </button>
+            </span>
           </div>
 
           {/* Controls */}
@@ -381,7 +444,7 @@ export default function App() {
           {/* Charts & tables */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
             <div className="lg:col-span-3">
-              <TimeChart data={daySeries} />
+              <TimeChart data={daySeries} onSelect={(d) => openLog('date', d)} />
               {datedCount < k.inquiries && (
                 <p className="mt-1.5 px-1 text-xs text-dim">
                   {fmt(k.inquiries - datedCount)} inquiries without a parseable date are excluded from the chart but counted everywhere else.
@@ -394,11 +457,14 @@ export default function App() {
             <div className="lg:col-span-1">
               <ShiftBreakdown rows={shiftRows} onSelect={(s) => openLog('shift', s)} />
             </div>
-            <div className="lg:col-span-2">
-              <CountryBreakdown rows={countryRows} />
-            </div>
             <div className="lg:col-span-1">
-              <StatusBreakdown rows={statusRows} />
+              <StatusBreakdown rows={statusRows} onSelect={(s) => openLog('status', s)} />
+            </div>
+            <div className="lg:col-span-2">
+              <LostReasons data={lostData} />
+            </div>
+            <div className="lg:col-span-3">
+              <CountryBreakdown rows={countryRows} onSelect={(c) => openLog('country', c)} />
             </div>
           </div>
 

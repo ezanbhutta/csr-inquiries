@@ -279,6 +279,52 @@ export function dataQuality(records) {
   }
 }
 
+// Duplicate clients — an inquiry should appear once per Fiverr buyer, so a
+// username that shows up more than once is flagged as an error.
+export function duplicateClients(records) {
+  const groups = {}
+  records.forEach((r) => {
+    const key = (r.client || '').toLowerCase().trim()
+    if (!key) return // missing client is its own error, not a duplicate
+    ;(groups[key] = groups[key] || []).push(r)
+  })
+  return Object.values(groups)
+    .filter((g) => g.length > 1)
+    .map((g) => ({
+      client: g[0].client,
+      count: g.length,
+      rows: g.map((r) => ({ profile: r.profile, date: r.date, status: r.status })),
+    }))
+    .sort((a, b) => b.count - a.count)
+}
+
+// Lost-reason analysis — classify the Notes on "Not Placed" leads.
+const LOST_REASONS = [
+  ['Scam / Spam', /scam|spam|fraud|fake/i],
+  ['Budget', /budget|expensive|too\s*much|pric(e|ing)|cheap|afford|costly|low\s*-?ball/i],
+  ['Out of scope', /out\s*of\s*scope|not\s*our|can'?t\s*do|cannot\s*do|not\s*possible|unable|don'?t\s*offer|not\s*offer/i],
+  ['No response', /no\s*response|no\s*reply|didn'?t\s*repl|not\s*respond|unrespons|ghost|left\s*on\s*seen|no\s*answer|never\s*replied|seen\s*zoned/i],
+]
+export function classifyLostReason(notes) {
+  const s = String(notes || '')
+  for (const [reason, re] of LOST_REASONS) if (re.test(s)) return reason
+  return s.trim() ? 'Other' : 'Unspecified'
+}
+export function lostReasons(rows) {
+  const lost = rows.filter((r) => !r.converted && r.status === 'Not Placed')
+  const counts = {}
+  lost.forEach((r) => {
+    const k = classifyLostReason(r.notes)
+    counts[k] = (counts[k] || 0) + 1
+  })
+  return {
+    total: lost.length,
+    reasons: Object.entries(counts)
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count),
+  }
+}
+
 // 7-point rolling average of conversion rate, for the trend line.
 export function withRollingRate(daySeries, window = 7) {
   return daySeries.map((d, i) => {

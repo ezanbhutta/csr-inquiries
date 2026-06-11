@@ -12,16 +12,21 @@ const TONE = {
   Other: '#A99FC4',
 }
 
-export default function StatusBreakdown({ rows }) {
+export default function StatusBreakdown({ rows, onSelect }) {
   const total = rows.reduce((s, r) => s + r.count, 0)
   return (
-    <Card title="Outcome mix" subtitle="Order Status across all inquiries in range">
-      <div className="space-y-2.5">
+    <Card title="Outcome mix" subtitle="Order Status · click a status to open its log">
+      <div className="space-y-1">
         {rows.map((r) => {
           const share = total > 0 ? (r.count / total) * 100 : 0
           return (
-            <div key={r.status} className="flex items-center gap-3">
-              <span className="w-28 shrink-0 text-sm text-muted">{r.status}</span>
+            <button
+              key={r.status}
+              type="button"
+              onClick={() => onSelect?.(r.status)}
+              className="flex w-full items-center gap-3 rounded-lg px-2 py-1.5 transition hover:bg-hover"
+            >
+              <span className="w-28 shrink-0 text-left text-sm text-muted">{r.status}</span>
               <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-raised">
                 <div
                   className="h-full rounded-full"
@@ -31,7 +36,7 @@ export default function StatusBreakdown({ rows }) {
               <span className="w-20 shrink-0 text-right text-sm tabular-nums text-muted">
                 {fmt(r.count)} · {Math.round(share)}%
               </span>
-            </div>
+            </button>
           )
         })}
         {total === 0 && <div className="text-sm text-dim">No inquiries in this range.</div>}

@@ -10,8 +10,9 @@ const url = process.argv[2] || 'http://localhost:4174/'
 const out = process.argv[3] || '/tmp/csr-inquiries.png'
 const fixtures = process.env.FIXTURES ? JSON.parse(readFileSync(process.env.FIXTURES, 'utf8')) : null
 
+const [vw, vh] = (process.env.VIEWPORT || '1440x2000').split('x').map(Number)
 const browser = await chromium.launch()
-const page = await browser.newPage({ viewport: { width: 1440, height: 2000 }, deviceScaleFactor: 2 })
+const page = await browser.newPage({ viewport: { width: vw, height: vh }, deviceScaleFactor: 2 })
 // Pre-unlock the gate so we land straight on the dashboard (unless NO_UNLOCK).
 if (!process.env.NO_UNLOCK) {
   await page.addInitScript(() => {
