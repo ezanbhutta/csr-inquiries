@@ -3,6 +3,7 @@ import { PROFILES, SHIFTS, UNASSIGNED } from './lib/config.js'
 import { loadCache, saveCache, syncAll } from './lib/sync.js'
 import {
   applyFilters,
+  businessDayTodayKey,
   byCountry,
   byDay,
   byProfile,
@@ -20,19 +21,26 @@ import TimeChart from './components/TimeChart.jsx'
 import DataQuality from './components/DataQuality.jsx'
 import FollowUps from './components/FollowUps.jsx'
 import CountryBreakdown from './components/CountryBreakdown.jsx'
+import DateRangePicker from './components/DateRangePicker.jsx'
 import ProfileTable from './components/ProfileTable.jsx'
 import ShiftBreakdown from './components/ShiftBreakdown.jsx'
 import StatusBreakdown from './components/StatusBreakdown.jsx'
 import { Logo, Stat, fmt, money } from './components/ui.jsx'
 
-const RANGES = [
-  ['today', 'Today'],
-  ['7d', '7d'],
-  ['30d', '30d'],
-  ['90d', '90d'],
-  ['all', 'All'],
-]
 const SHIFT_OPTS = [...SHIFTS, UNASSIGNED]
+const PRESET_LABELS = {
+  today: 'Today',
+  yesterday: 'Yesterday',
+  '7d': 'Last 7 days',
+  '30d': 'Last 30 days',
+  '90d': 'Last 90 days',
+  custom: 'Custom',
+}
+
+const viewFromHash = () => {
+  const h = (typeof location !== 'undefined' && location.hash) || ''
+  return h === '#errors' ? 'errors' : h === '#followups' ? 'followups' : 'dashboard'
+}
 
 function shiftRangeBack({ from, to }) {
   if (!from || !to) return null
@@ -108,11 +116,11 @@ export default function App() {
   const [exporting, setExporting] = useState(false)
   const [errors, setErrors] = useState([])
   const [preset, setPreset] = useState('30d')
+  const [customStart, setCustomStart] = useState(null)
+  const [customEnd, setCustomEnd] = useState(null)
   const [profiles, setProfiles] = useState([])
   const [shifts, setShifts] = useState([])
-  const [view, setView] = useState(() =>
-    typeof location !== 'undefined' && location.hash === '#errors' ? 'errors' : 'dashboard',
-  )
+  const [view, setView] = useState(viewFromHash)
 
   const refresh = async () => {
     setLoading(true)
@@ -136,12 +144,15 @@ export default function App() {
   }, [unlocked])
 
   useEffect(() => {
-    const h = () => setView(location.hash === '#errors' ? 'errors' : 'dashboard')
+    const h = () => setView(viewFromHash())
     window.addEventListener('hashchange', h)
     return () => window.removeEventListener('hashchange', h)
   }, [])
 
-  const range = useMemo(() => dateRangePreset(preset, rows), [preset, rows])
+  const range = useMemo(
+    () => dateRangePreset(preset, rows, { start: customStart, end: customEnd }),
+    [preset, rows, customStart, customEnd],
+  )
   const filtered = useMemo(
     () => applyFilters(rows, { profiles, shifts, from: range.from, to: range.to }),
     [rows, profiles, shifts, range],
@@ -154,15 +165,23 @@ export default function App() {
 
   const k = useMemo(() => kpis(filtered), [filtered])
   const kPrev = useMemo(() => kpis(prevFiltered), [prevFiltered])
-  const prof = useMemo(
-    () => byProfile(filtered, profiles.length ? profiles : PROFILES),
-    [filtered, profiles],
+  // Breakdown panels stay full "pickers": the profile list ignores the profile
+  // filter (and vice-versa) so you can always click another to isolate it,
+  // while the rest of the dashboard reflects the selection.
+  const filteredNoProfile = useMemo(
+    () => applyFilters(rows, { shifts, from: range.from, to: range.to }),
+    [rows, shifts, range],
   )
-  const shiftRows = useMemo(() => byShift(filtered), [filtered])
+  const filteredNoShift = useMemo(
+    () => applyFilters(rows, { profiles, from: range.from, to: range.to }),
+    [rows, profiles, range],
+  )
+  const prof = useMemo(() => byProfile(filteredNoProfile, PROFILES), [filteredNoProfile])
+  const shiftRows = useMemo(() => byShift(filteredNoShift), [filteredNoShift])
   const countryRows = useMemo(() => byCountry(filtered), [filtered])
   const daySeries = useMemo(() => withRollingRate(byDay(filtered)), [filtered])
   const statusRows = useMemo(() => byStatus(filtered), [filtered])
-  const fuStats = useMemo(() => followupStats(filtered), [filtered])
+  const fuStats = useMemo(() => followupStats(rows), [rows])
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
 
   // Errors: only inquiries from June 2026 onward (all profiles).
@@ -176,10 +195,10 @@ export default function App() {
   const rangeLabel =
     preset === 'all'
       ? `All time${range.from ? ` (${range.from} → ${range.to})` : ''}`
-      : `${RANGES.find((r) => r[0] === preset)[1]} · ${range.from} → ${range.to}`
+      : `${PRESET_LABELS[preset] || preset} · ${range.from || '—'} → ${range.to || '—'}`
 
   const go = (v) => {
-    location.hash = v === 'errors' ? '#errors' : ''
+    location.hash = v === 'dashboard' ? '' : '#' + v
     setView(v)
   }
 
@@ -222,6 +241,14 @@ export default function App() {
               <button className={`seg ${view === 'dashboard' ? 'seg-on' : ''}`} onClick={() => go('dashboard')}>
                 Dashboard
               </button>
+              <button className={`seg ${view === 'followups' ? 'seg-on' : ''}`} onClick={() => go('followups')}>
+                Follow-ups
+                {fuStats.due.length > 0 && (
+                  <span className="ml-1.5 rounded-full bg-amber px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    {fmt(fuStats.due.length)}
+                  </span>
+                )}
+              </button>
               <button
                 className={`seg ${view === 'errors' ? 'seg-on' : ''}`}
                 onClick={() => go('errors')}
@@ -247,7 +274,7 @@ export default function App() {
       </header>
 
       {view === 'errors' ? (
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        <main className="mx-auto max-w-[88rem] px-4 py-6 sm:px-6">
           <div className="mb-5">
             <h1 className="disp text-2xl font-bold text-ink">Errors</h1>
             <p className="mt-0.5 text-sm text-muted">
@@ -258,8 +285,19 @@ export default function App() {
           </div>
           <DataQuality dq={errorsDq} scope="June 2026 onward" />
         </main>
+      ) : view === 'followups' ? (
+        <main className="mx-auto max-w-[88rem] px-4 py-6 sm:px-6">
+          <div className="mb-5">
+            <h1 className="disp text-2xl font-bold text-ink">Follow-ups</h1>
+            <p className="mt-0.5 text-sm text-muted">
+              Open (Not Placed) leads only — Placed &amp; Direct Orders are already won. Work the
+              queue: search, filter by touches or profile, and sort by who's been waiting longest.
+            </p>
+          </div>
+          <FollowUps stats={fuStats} />
+        </main>
       ) : (
-        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        <main className="mx-auto max-w-[88rem] px-4 py-6 sm:px-6">
           <div className="mb-5">
             <h1 className="disp text-2xl font-bold text-ink">Daily inquiry &amp; conversion</h1>
             <p className="mt-0.5 text-sm text-muted">
@@ -271,17 +309,17 @@ export default function App() {
 
           {/* Controls */}
           <div className="mb-6 flex flex-wrap items-center gap-2">
-            <div className="flex rounded-lg border border-line bg-raised p-1">
-              {RANGES.map(([key, label]) => (
-                <button
-                  key={key}
-                  className={`seg ${preset === key ? 'seg-on' : ''}`}
-                  onClick={() => setPreset(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+            <DateRangePicker
+              preset={preset}
+              setPreset={setPreset}
+              customStart={customStart}
+              customEnd={customEnd}
+              setCustomStart={setCustomStart}
+              setCustomEnd={setCustomEnd}
+              windowStart={range.from}
+              windowEnd={range.to}
+              today={businessDayTodayKey()}
+            />
             <FilterMenu label="Profiles" allLabel="All profiles" options={PROFILES} selected={profiles} onChange={setProfiles} />
             <FilterMenu label="Shift" allLabel="All shifts" options={SHIFT_OPTS} selected={shifts} onChange={setShifts} />
           </div>
@@ -324,14 +362,19 @@ export default function App() {
                 </p>
               )}
             </div>
-            <div className="lg:col-span-3">
-              <FollowUps stats={fuStats} />
-            </div>
             <div className="lg:col-span-2">
-              <ProfileTable rows={prof} />
+              <ProfileTable
+                rows={prof}
+                selected={profiles}
+                onSelect={(p) => setProfiles(profiles.length === 1 && profiles[0] === p ? [] : [p])}
+              />
             </div>
             <div className="lg:col-span-1">
-              <ShiftBreakdown rows={shiftRows} />
+              <ShiftBreakdown
+                rows={shiftRows}
+                selected={shifts}
+                onSelect={(s) => setShifts(shifts.length === 1 && shifts[0] === s ? [] : [s])}
+              />
             </div>
             <div className="lg:col-span-2">
               <CountryBreakdown rows={countryRows} />

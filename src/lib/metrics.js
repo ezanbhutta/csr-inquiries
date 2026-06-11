@@ -14,7 +14,7 @@ export function businessDayTodayKey(now = new Date()) {
   return `${pkt.getUTCFullYear()}-${p(pkt.getUTCMonth() + 1)}-${p(pkt.getUTCDate())}`
 }
 
-export function dateRangePreset(preset, rows) {
+export function dateRangePreset(preset, rows, custom = {}) {
   const today = businessDayTodayKey()
   const end = today
   const shift = (days) => {
@@ -26,12 +26,18 @@ export function dateRangePreset(preset, rows) {
   switch (preset) {
     case 'today':
       return { from: today, to: end }
+    case 'yesterday': {
+      const y = shift(1)
+      return { from: y, to: y }
+    }
     case '7d':
       return { from: shift(6), to: end }
     case '30d':
       return { from: shift(29), to: end }
     case '90d':
       return { from: shift(89), to: end }
+    case 'custom':
+      return { from: custom.start || null, to: custom.end || null }
     case 'all':
     default: {
       const dated = rows.map((r) => r.date).filter(Boolean).sort()
@@ -107,38 +113,72 @@ export function byCountry(rows, topN = 12) {
 export function followupStats(rows, { dueWindowDays = 21 } = {}) {
   // Placed & Direct Orders are already won — follow-ups don't apply, so they're
   // excluded. Only open (Not Placed) leads are in scope.
-  const open = rows.filter((r) => r.status === 'Not Placed')
-  const funnel = [0, 1, 2, 3].map((touches) => {
-    const count = open.filter((r) => (r.followups || 0) === touches).length
-    return { touches, count, share: pct(count, open.length) }
-  })
-  const under = open.filter((r) => (r.followups || 0) < 3)
-  const zeroOpen = open.filter((r) => (r.followups || 0) === 0).length
   const now = Date.now()
   const daysSince = (r) => {
     const ts = r.lastContactTs || r.ts
     return ts ? Math.floor((now - ts) / 86_400_000) : null
   }
-  const due = under
-    .map((r) => ({
-      profile: r.profile,
-      client: r.client,
-      followups: r.followups || 0,
-      daysSince: daysSince(r),
-      lastContact: r.lastContact,
+  const open = rows
+    .filter((r) => r.status === 'Not Placed')
+    .map((r) => {
+      const ds = daysSince(r)
+      const followups = r.followups || 0
+      return {
+        profile: r.profile,
+        client: r.client,
+        shift: r.shift,
+        country: r.country,
+        followups,
+        lastContact: r.lastContact,
+        daysSince: ds,
+        date: r.date,
+        // Actionable: under 3 touches and last touched within the window.
+        due: followups < 3 && ds != null && ds <= dueWindowDays,
+      }
+    })
+
+  const funnel = [0, 1, 2, 3].map((touches) => {
+    const count = open.filter((r) => r.followups === touches).length
+    return { touches, count, share: pct(count, open.length) }
+  })
+  const under = open.filter((r) => r.followups < 3)
+  const zeroOpen = open.filter((r) => r.followups === 0).length
+  const due = open.filter((r) => r.due).sort((a, b) => b.daysSince - a.daysSince)
+
+  // Per-profile follow-up coverage — surfaces which profiles neglect follow-ups.
+  const order = new Map(PROFILES.map((p, i) => [p, i]))
+  const groups = {}
+  open.forEach((r) => {
+    const g = (groups[r.profile] = groups[r.profile] || { open: 0, zero: 0, under: 0, touches: 0 })
+    g.open += 1
+    g.touches += r.followups
+    if (r.followups === 0) g.zero += 1
+    if (r.followups < 3) g.under += 1
+  })
+  const byProfile = Object.entries(groups)
+    .map(([profile, g]) => ({
+      profile,
+      open: g.open,
+      zero: g.zero,
+      under: g.under,
+      avgTouches: g.open ? Math.round((g.touches / g.open) * 100) / 100 : 0,
+      zeroPct: pct(g.zero, g.open),
     }))
-    // Focus the queue on the actionable window; ancient open leads are dead.
-    .filter((r) => r.daysSince != null && r.daysSince <= dueWindowDays)
-    .sort((a, b) => b.daysSince - a.daysSince)
+    .sort((a, b) => b.zero - a.zero || (order.get(a.profile) ?? 99) - (order.get(b.profile) ?? 99))
+
   return {
+    leads: open,
     funnel,
+    due,
+    byProfile,
+    dueWindowDays,
     openTotal: open.length,
     underCount: under.length,
+    zeroOpenCount: zeroOpen,
     zeroOpenPct: pct(zeroOpen, open.length),
     avgTouches: open.length
-      ? Math.round((open.reduce((s, r) => s + (r.followups || 0), 0) / open.length) * 100) / 100
+      ? Math.round((open.reduce((s, r) => s + r.followups, 0) / open.length) * 100) / 100
       : 0,
-    due,
   }
 }
 
