@@ -225,7 +225,8 @@ export default function App() {
   // By country is June 2026 onward only (like Errors/Follow-ups/lost-reasons).
   const countryRows = useMemo(() => byCountry(rows.filter(inErrorScope)), [rows])
   const daySeries = useMemo(() => withRollingRate(byDay(filtered)), [filtered])
-  const statusRows = useMemo(() => byStatus(filtered), [filtered])
+  // Outcome mix is June 2026 onward only (like the other data-quality panels).
+  const statusRows = useMemo(() => byStatus(rows.filter(inErrorScope)), [rows])
   // Follow-ups, like Errors, only count inquiries from June 2026 onward.
   const fuStats = useMemo(() => followupStats(rows.filter(inErrorScope)), [rows])
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
