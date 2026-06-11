@@ -14,7 +14,6 @@ import {
   isConverted,
   normalizeShift,
   matchCsr,
-  csrShift,
   normalizeCountry,
   looksLikeClient,
 } from './normalize.js'
@@ -36,9 +35,10 @@ function normalizeRow(profile, row, map) {
   const statusRaw = firstNonEmpty(row, map.status)
   const d = parseDate(dateRaw)
   const csr = map.csr ? matchCsr(firstNonEmpty(row, map.csr)) : null
-  const shiftCol = normalizeShift(firstNonEmpty(row, map.shift))
-  // Prefer an explicit shift; otherwise infer from the CSR's roster shift.
-  const shift = shiftCol !== 'Unassigned' ? shiftCol : csrShift(csr) || 'Unassigned'
+  // Shift = when the query came in (Shift column only). It is NOT inferred from
+  // the CSR — a query can arrive on one shift but be written by another shift's
+  // CSR. A blank shift is a real data gap (surfaced on the Errors page).
+  const shift = normalizeShift(firstNonEmpty(row, map.shift))
   const clientRaw = firstNonEmpty(row, map.client)
   // Follow Up 1/2/3 are sequential TRUE/FALSE checkboxes → a 0–3 touch count.
   const fu = (idx) => /true/i.test(String(firstNonEmpty(row, idx)))

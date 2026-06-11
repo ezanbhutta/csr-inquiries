@@ -11,6 +11,7 @@ import {
   followupStats,
   kpis,
   dataQuality,
+  inErrorScope,
 } from '../src/lib/metrics.js'
 
 const fmt = (n) => n.toLocaleString('en-US')
@@ -83,10 +84,10 @@ console.log('\n=== TIME RANGE ===')
 console.log(`days with data: ${days.length}`)
 if (days.length) console.log(`first: ${days[0].date}   last: ${days[days.length - 1].date}`)
 
-console.log('\n=== DATA QUALITY (required fields) ===')
-const dq = dataQuality([...rows, ...orphans])
-console.log(`orphan rows (data but no Client Name): ${orphans.length}`)
-console.log(`inquiries with >=1 missing required field: ${fmt(dq.withIssues)} of ${fmt(dq.total)}`)
+console.log('\n=== ERRORS / DATA QUALITY (June 2026 onward) ===')
+const dq = dataQuality([...rows, ...orphans].filter(inErrorScope))
+console.log(`orphan rows in scope (data but no Client Name): ${dq.counts['Client Name']}`)
+console.log(`June-onward inquiries with >=1 missing required field: ${fmt(dq.withIssues)} of ${fmt(dq.total)}`)
 Object.entries(dq.counts).forEach(([f, n]) => console.log(`  missing ${f.padEnd(13)} ${fmt(n)}`))
 if (dq.noCsrColumnProfiles.length) console.log(`  tabs with NO CSR column: ${dq.noCsrColumnProfiles.join(', ')}`)
 console.log('  worst rows:')
