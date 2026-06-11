@@ -174,18 +174,43 @@ export function matchCsr(raw) {
 export const csrShift = (canonicalCsr) =>
   canonicalCsr ? CSR_SHIFT[canonicalCsr.toLowerCase()] || null : null
 
-// --- Country (light canonicalization for display) ---------------------------
-const COUNTRY_FIX = {
-  us: 'United States', usa: 'United States', 'united states': 'United States',
-  'united states of america': 'United States',
-  uk: 'United Kingdom', 'united kingdom': 'United Kingdom', 'united kingdoms': 'United Kingdom',
-  uae: 'United Arab Emirates',
+// --- Country canonicalization ------------------------------------------------
+// Case-insensitive: title-casing merges pure case variants (UK/uk, United
+// States/united states), the alias map folds abbreviations + common typos, and
+// junk (usernames/dates that landed in the Country column) becomes Unknown.
+const COUNTRY_ALIASES = {
+  // United States
+  us: 'United States', usa: 'United States', 'united state': 'United States',
+  'united stated': 'United States', 'united states of america': 'United States', america: 'United States',
+  // United Kingdom
+  uk: 'United Kingdom', gb: 'United Kingdom', 'great britain': 'United Kingdom', britain: 'United Kingdom',
+  england: 'United Kingdom', 'united kingdoms': 'United Kingdom', 'united kingdom': 'United Kingdom',
+  'united kindom': 'United Kingdom',
+  // UAE / Saudi
+  uae: 'United Arab Emirates', ksa: 'Saudi Arabia', 'saudia arabia': 'Saudi Arabia', 'saudi arab': 'Saudi Arabia',
+  // abbreviations + typos
+  mex: 'Mexico', netherland: 'Netherlands', germay: 'Germany', ausralia: 'Australia', canda: 'Canada',
+  moroco: 'Morocco', switzarland: 'Switzerland', isreal: 'Israel', philipines: 'Philippines',
+  philippinesphilippines: 'Philippines', malysia: 'Malaysia', newzeland: 'New Zealand', 'new zeland': 'New Zealand',
+  veitnam: 'Vietnam', indonasia: 'Indonesia', sangapur: 'Singapore', luxemborg: 'Luxembourg', suedia: 'Sweden',
 }
+
+const SMALL_WORDS = new Set(['and', 'of', 'the', 'da', 'di', 'de', 'el', 'la', 'do', 'dos'])
+const titleCaseCountry = (s) =>
+  s
+    .split(' ')
+    .filter(Boolean)
+    .map((w, i) => (i > 0 && SMALL_WORDS.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(' ')
+
 export function normalizeCountry(raw) {
-  const s = clean(raw)
+  const s = clean(raw).replace(/[.,;]+$/, '').trim()
   if (!s) return ''
-  const fix = COUNTRY_FIX[s.toLowerCase()]
-  return fix || s
+  const key = s.toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ').trim()
+  if (COUNTRY_ALIASES[key]) return COUNTRY_ALIASES[key]
+  // Usernames / dates that bled into the Country column → Unknown.
+  if (/[\d_]/.test(key) || key.length < 2) return ''
+  return titleCaseCountry(key)
 }
 
 // A cell is junk-as-client when it's clearly not a buyer username.
