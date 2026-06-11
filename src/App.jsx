@@ -45,6 +45,24 @@ const PRESET_LABELS = {
 
 const LOG_LABEL = { profile: 'Profile', shift: 'Shift', country: 'Country', status: 'Status', date: 'Day', client: 'Client', csr: 'CSR' }
 
+const ROSTER_KEY = 'csr-inquiries:roster'
+const SHIFTHIST_KEY = 'csr-inquiries:shifthistory'
+const loadRoster = () => {
+  try {
+    const r = JSON.parse(localStorage.getItem(ROSTER_KEY))
+    return Array.isArray(r) && r.length ? r : ROSTER
+  } catch {
+    return ROSTER
+  }
+}
+const loadJSON = (key, fallback) => {
+  try {
+    return JSON.parse(localStorage.getItem(key)) || fallback
+  } catch {
+    return fallback
+  }
+}
+
 const parseHash = () => {
   const h = ((typeof location !== 'undefined' && location.hash) || '').replace(/^#/, '')
   if (h === 'errors') return { view: 'errors' }
@@ -135,6 +153,8 @@ export default function App() {
   const [customEnd, setCustomEnd] = useState(null)
   const [profiles, setProfiles] = useState([])
   const [shifts, setShifts] = useState([])
+  const [roster, setRoster] = useState(loadRoster)
+  const [shiftHistory, setShiftHistory] = useState(() => loadJSON(SHIFTHIST_KEY, []))
   const [route, setRoute] = useState(parseHash)
   const view = route.view
 
@@ -165,6 +185,22 @@ export default function App() {
     return () => window.removeEventListener('hashchange', h)
   }, [])
 
+  // Persist roster edits locally (like CSR Pulse).
+  useEffect(() => {
+    try {
+      localStorage.setItem(ROSTER_KEY, JSON.stringify(roster))
+    } catch {
+      /* ignore */
+    }
+  }, [roster])
+  useEffect(() => {
+    try {
+      localStorage.setItem(SHIFTHIST_KEY, JSON.stringify(shiftHistory))
+    } catch {
+      /* ignore */
+    }
+  }, [shiftHistory])
+
   const range = useMemo(
     () => dateRangePreset(preset, rows, { start: customStart, end: customEnd }),
     [preset, rows, customStart, customEnd],
@@ -193,13 +229,6 @@ export default function App() {
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
 
   const lostData = useMemo(() => lostReasons(filtered), [filtered])
-  const csrCounts = useMemo(() => {
-    const m = {}
-    rows.forEach((r) => {
-      if (r.csr) m[r.csr] = (m[r.csr] || 0) + 1
-    })
-    return m
-  }, [rows])
 
   // Errors: only inquiries from June 2026 onward (all profiles).
   const errorRecords = useMemo(() => [...rows, ...orphans].filter(inErrorScope), [rows, orphans])
@@ -254,6 +283,30 @@ export default function App() {
   const openLog = (type, value) => {
     location.hash = `log/${type}/${encodeURIComponent(value)}`
     setRoute(parseHash())
+  }
+
+  // Roster editing (same model as CSR Pulse).
+  const rosterChangeShift = (id, newShift) => {
+    const c = roster.find((x) => x.id === id)
+    if (!c || c.shift === newShift) return
+    setShiftHistory((h) => [...h, { name: c.name, from: c.shift, to: newShift, changedOn: businessDayTodayKey() }])
+    setRoster((rs) => rs.map((x) => (x.id === id ? { ...x, shift: newShift } : x)))
+  }
+  const rosterToggleArchive = (id) =>
+    setRoster((rs) => rs.map((x) => (x.id === id ? { ...x, active: !x.active } : x)))
+  const rosterEditName = (id, name) => {
+    const n = name.trim()
+    if (!n) return
+    setRoster((rs) => rs.map((x) => (x.id === id ? { ...x, name: n } : x)))
+  }
+  const rosterAddPerson = ({ name, shift, role }) => {
+    const nm = name.trim()
+    if (!nm) return
+    const base = nm.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16) || 'csr'
+    let id = base
+    let n = 2
+    while (roster.find((r) => r.id === id)) id = base + n++
+    setRoster((rs) => [...rs, { id, name: nm, shift, role, active: true }])
   }
 
   const exportPdf = async () => {
@@ -346,12 +399,19 @@ export default function App() {
       ) : view === 'roster' ? (
         <main className="mx-auto max-w-[88rem] px-4 py-6 sm:px-6">
           <div className="mb-5">
-            <h1 className="disp text-2xl font-bold text-ink">Roster</h1>
+            <h1 className="disp text-2xl font-bold text-ink">Team roster</h1>
             <p className="mt-0.5 text-sm text-muted">
-              The team by shift (from CSR Pulse). Each name shows inquiries it has handled — click to open that CSR's log.
+              Edit names, change shifts, add people and archive — same as CSR Pulse. Saved on this device.
             </p>
           </div>
-          <RosterPage roster={ROSTER} counts={csrCounts} onSelect={(name) => openLog('csr', name)} />
+          <RosterPage
+            roster={roster}
+            shiftHistory={shiftHistory}
+            onChangeShift={rosterChangeShift}
+            onToggleArchive={rosterToggleArchive}
+            onEditName={rosterEditName}
+            onAddPerson={rosterAddPerson}
+          />
         </main>
       ) : view === 'errors' ? (
         <main className="mx-auto max-w-[88rem] px-4 py-6 sm:px-6">
