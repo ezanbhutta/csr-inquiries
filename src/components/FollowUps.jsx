@@ -1,16 +1,12 @@
-import { useState } from 'react'
-import { Card, fmt } from './ui.jsx'
+import { useMemo, useState } from 'react'
+import { Card, Stat, fmt } from './ui.jsx'
 
 // 3 sequential follow-up slots, filled = done.
 function Dots({ n }) {
   return (
     <span className="inline-flex gap-1 align-middle">
       {[0, 1, 2].map((i) => (
-        <i
-          key={i}
-          className="h-2.5 w-2.5 rounded-full"
-          style={{ background: i < n ? '#7229FF' : '#E1DCF0' }}
-        />
+        <i key={i} className="h-2.5 w-2.5 rounded-full" style={{ background: i < n ? '#7229FF' : '#E1DCF0' }} />
       ))}
     </span>
   )
@@ -22,103 +18,202 @@ function DaysAgo({ d }) {
   return <span className={tone}>{d}d ago</span>
 }
 
-const LIMIT = 20
+const PAGE = 40
+const MAX = 300
 
 export default function FollowUps({ stats }) {
+  const { leads, funnel, byProfile, openTotal, zeroOpenCount, zeroOpenPct, avgTouches, due, dueWindowDays } = stats
+  const [touch, setTouch] = useState(null) // null | 0 | 1 | 2 | 3
+  const [profileF, setProfileF] = useState(null)
+  const [q, setQ] = useState('')
+  const [dueOnly, setDueOnly] = useState(false)
+  const [sort, setSort] = useState({ key: 'daysSince', dir: -1 })
   const [expanded, setExpanded] = useState(false)
-  const { funnel, openTotal, underCount, zeroOpenPct, avgTouches, due } = stats
+
+  const filtered = useMemo(() => {
+    let rows = leads
+    if (touch != null) rows = rows.filter((r) => r.followups === touch)
+    if (profileF) rows = rows.filter((r) => r.profile === profileF)
+    if (dueOnly) rows = rows.filter((r) => r.due)
+    const term = q.trim().toLowerCase()
+    if (term) rows = rows.filter((r) => r.client.toLowerCase().includes(term))
+    const dir = sort.dir
+    return [...rows].sort((a, b) => {
+      const av = a[sort.key]
+      const bv = b[sort.key]
+      if (typeof av === 'string') return dir * String(av).localeCompare(String(bv))
+      return dir * ((av ?? -1) - (bv ?? -1))
+    })
+  }, [leads, touch, profileF, dueOnly, q, sort])
+
+  const shown = filtered.slice(0, expanded ? MAX : PAGE)
   const maxCount = Math.max(1, ...funnel.map((f) => f.count))
-  const shown = expanded ? due : due.slice(0, LIMIT)
+  const maxOpen = Math.max(1, ...byProfile.map((p) => p.open))
+  const toggleSort = (key) =>
+    setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: key === 'client' || key === 'profile' ? 1 : -1 }))
+  const arrow = (key) => (sort.key === key ? (sort.dir < 0 ? ' ↓' : ' ↑') : '')
 
   return (
-    <Card
-      title="Follow-up system"
-      subtitle="Open (Not Placed) leads only — Placed & Direct Orders are already won, so they're excluded."
-      right={
-        <span className="pill border-brand/40 text-brand">avg {avgTouches} / open lead</span>
-      }
-    >
-      {/* Research-grounded nudge */}
+    <div className="space-y-4">
       <p
-        className="mb-4 rounded-lg border px-3 py-2 text-xs"
+        className="rounded-xl border px-4 py-3 text-sm"
         style={{ background: '#F1EBFF', borderColor: '#D9C9FF', color: '#5E1FD8' }}
       >
         📈 ~80% of sales need <b>5+ follow-ups</b>, yet ~44% of reps stop after one. Right now{' '}
-        <b>{zeroOpenPct}%</b> of your {fmt(openTotal)} open leads have had <b>zero</b> follow-ups, and{' '}
-        <b>{fmt(underCount)}</b> still have room for more.
+        <b>{zeroOpenPct}%</b> of your <b>{fmt(openTotal)}</b> open leads have had <b>zero</b> follow-ups —
+        <b> {fmt(due.length)}</b> are due for one now (under 3 touches, last contacted within {dueWindowDays} days).
       </p>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {/* Funnel: conversion by # of follow-ups */}
-        <div>
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-dim">
-            Open leads by # of follow-ups
+      {/* KPIs */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Stat label="Open leads" value={fmt(openTotal)} sub="Not Placed, not yet won" />
+        <Stat label="Zero follow-ups" tone="warn" value={fmt(zeroOpenCount)} sub={`${zeroOpenPct}% of open leads`} />
+        <Stat label="Avg touches / lead" value={avgTouches} sub="across open leads" />
+        <Stat label={`Due now (≤${dueWindowDays}d)`} tone="accent" value={fmt(due.length)} sub="under 3 touches" />
+      </div>
+
+      {/* Funnel + coverage */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card title="Open leads by # of follow-ups" subtitle="Click a row to filter the list below">
+          <div className="space-y-2">
+            {funnel.map((f) => {
+              const active = touch === f.touches
+              return (
+                <button
+                  key={f.touches}
+                  type="button"
+                  onClick={() => setTouch(active ? null : f.touches)}
+                  className={`w-full rounded-lg px-2 py-1.5 text-left transition ${active ? 'bg-brand/10 ring-1 ring-brand/40' : 'hover:bg-hover'}`}
+                >
+                  <div className="mb-1 flex items-center justify-between text-sm">
+                    <span className="flex items-center gap-2 font-medium text-ink">
+                      <Dots n={f.touches} /> {f.touches} follow-up{f.touches === 1 ? '' : 's'}
+                    </span>
+                    <span className="text-muted">{fmt(f.count)} · {f.share}%</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-raised">
+                    <div className="h-full rounded-full bg-brand" style={{ width: `${Math.round((f.count / maxCount) * 100)}%` }} />
+                  </div>
+                </button>
+              )
+            })}
           </div>
-          <div className="space-y-3">
-            {funnel.map((f) => (
-              <div key={f.touches}>
-                <div className="mb-1 flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-2 font-medium text-ink">
-                    <Dots n={f.touches} /> {f.touches} follow-up{f.touches === 1 ? '' : 's'}
-                  </span>
-                  <span className="text-muted">{fmt(f.count)} · {f.share}%</span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-raised">
-                  <div
-                    className="h-full rounded-full bg-brand"
-                    style={{ width: `${Math.round((f.count / maxCount) * 100)}%` }}
-                  />
-                </div>
-              </div>
+        </Card>
+
+        <Card title="Coverage by profile" subtitle="Open leads and how many have had zero follow-ups">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr>
+                  <th className="th">Profile</th>
+                  <th className="th text-right">Open</th>
+                  <th className="th text-right">0 follow-ups</th>
+                  <th className="th text-right">Avg</th>
+                </tr>
+              </thead>
+              <tbody>
+                {byProfile.map((p) => (
+                  <tr
+                    key={p.profile}
+                    onClick={() => setProfileF(profileF === p.profile ? null : p.profile)}
+                    className={`cursor-pointer ${profileF === p.profile ? 'bg-brand/10' : 'hover:bg-hover'}`}
+                  >
+                    <td className="td">
+                      <div className="font-medium text-ink">{p.profile}</div>
+                      <div className="mt-1.5 h-1.5 w-28 overflow-hidden rounded-full bg-raised">
+                        <div className="h-full rounded-full bg-brand" style={{ width: `${Math.round((p.open / maxOpen) * 100)}%` }} />
+                      </div>
+                    </td>
+                    <td className="td text-right tabular-nums text-ink">{fmt(p.open)}</td>
+                    <td className="td text-right tabular-nums">
+                      <span className={p.zeroPct >= 50 ? 'text-coral' : 'text-muted'}>{fmt(p.zero)} · {p.zeroPct}%</span>
+                    </td>
+                    <td className="td text-right tabular-nums text-muted">{p.avgTouches}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
+
+      {/* Interactive leads table */}
+      <Card
+        title="Leads"
+        subtitle="Every open lead — search, filter and sort to work the queue"
+        right={<span className="pill">{fmt(filtered.length)} shown</span>}
+      >
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search client…"
+            className="rounded-lg border border-line bg-raised px-3 py-1.5 text-sm text-ink outline-none focus:border-brand"
+          />
+          <div className="flex items-center gap-1 rounded-lg border border-line bg-raised p-1">
+            {[null, 0, 1, 2, 3].map((t) => (
+              <button
+                key={String(t)}
+                onClick={() => setTouch(t)}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition ${touch === t ? 'bg-brand text-white' : 'text-dim hover:text-ink'}`}
+              >
+                {t == null ? 'All' : `${t} FU`}
+              </button>
             ))}
           </div>
-        </div>
-
-        {/* Due-for-follow-up queue */}
-        <div>
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-dim">
-              Due for follow-up
-            </span>
-            <span className="pill border-coral/40 text-coral">{fmt(due.length)} leads</span>
-          </div>
-          {due.length === 0 ? (
-            <div className="rounded-lg border border-line bg-raised px-3 py-4 text-center text-sm text-mint">
-              ✓ No open leads waiting on a follow-up.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr>
-                    <th className="th">Client</th>
-                    <th className="th">Profile</th>
-                    <th className="th">Done</th>
-                    <th className="th text-right">Last contact</th>
-                    <th className="th">Next</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map((r, i) => (
-                    <tr key={i} className="hover:bg-hover">
-                      <td className="td font-medium text-ink">{r.client}</td>
-                      <td className="td whitespace-nowrap text-muted">{r.profile}</td>
-                      <td className="td"><Dots n={r.followups} /></td>
-                      <td className="td whitespace-nowrap text-right"><DaysAgo d={r.daysSince} /></td>
-                      <td className="td whitespace-nowrap text-brand">#{r.followups + 1}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {due.length > LIMIT && (
-                <button className="seg mt-2 text-brand" onClick={() => setExpanded((v) => !v)}>
-                  {expanded ? 'Show less' : `Show all ${fmt(due.length)} →`}
-                </button>
-              )}
-            </div>
+          <button
+            onClick={() => setDueOnly((v) => !v)}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${dueOnly ? 'border-brand bg-brand/10 text-brand' : 'border-line text-dim hover:text-ink'}`}
+          >
+            Due now only
+          </button>
+          {profileF && (
+            <button onClick={() => setProfileF(null)} className="pill border-brand/40 text-brand">
+              {profileF} ✕
+            </button>
           )}
         </div>
-      </div>
-    </Card>
+
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className="th cursor-pointer" onClick={() => toggleSort('client')}>Client{arrow('client')}</th>
+                <th className="th cursor-pointer" onClick={() => toggleSort('profile')}>Profile{arrow('profile')}</th>
+                <th className="th">Shift</th>
+                <th className="th">Follow-ups</th>
+                <th className="th">Last contact</th>
+                <th className="th cursor-pointer text-right" onClick={() => toggleSort('daysSince')}>Waiting{arrow('daysSince')}</th>
+                <th className="th">Next</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r, i) => (
+                <tr key={i} className="hover:bg-hover">
+                  <td className="td font-medium text-ink">{r.client}</td>
+                  <td className="td whitespace-nowrap text-muted">{r.profile}</td>
+                  <td className="td whitespace-nowrap text-muted">{r.shift}</td>
+                  <td className="td"><Dots n={r.followups} /></td>
+                  <td className="td whitespace-nowrap text-muted">{r.lastContact || '—'}</td>
+                  <td className="td whitespace-nowrap text-right"><DaysAgo d={r.daysSince} /></td>
+                  <td className="td whitespace-nowrap">{r.followups < 3 ? <span className="text-brand">#{r.followups + 1}</span> : <span className="text-mint">✓ done</span>}</td>
+                </tr>
+              ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={7} className="td text-center text-dim">No leads match these filters.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {filtered.length > PAGE && (
+          <button className="seg mt-2 text-brand" onClick={() => setExpanded((v) => !v)}>
+            {expanded ? 'Show less' : `Show more (of ${fmt(filtered.length)})`}
+          </button>
+        )}
+        {expanded && filtered.length > MAX && (
+          <p className="mt-1 text-xs text-dim">Showing first {MAX} — refine the filters to narrow down.</p>
+        )}
+      </Card>
+    </div>
   )
 }

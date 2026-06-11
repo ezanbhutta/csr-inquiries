@@ -9,7 +9,7 @@ const COLS = [
   { key: 'value', label: 'Won value', align: 'right' },
 ]
 
-export default function ProfileTable({ rows }) {
+export default function ProfileTable({ rows, selected = [], onSelect }) {
   const [sort, setSort] = useState({ key: 'inquiries', dir: -1 })
   const sorted = [...rows].sort((a, b) => {
     const av = a[sort.key]
@@ -22,7 +22,7 @@ export default function ProfileTable({ rows }) {
     setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: key === 'profile' ? 1 : -1 }))
 
   return (
-    <Card title="By profile" subtitle="Which profiles get the inquiries — and convert them">
+    <Card title="By profile" subtitle="Click a profile to see only its inquiries · click again to clear">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
@@ -41,7 +41,11 @@ export default function ProfileTable({ rows }) {
           </thead>
           <tbody>
             {sorted.map((r) => (
-              <tr key={r.profile} className="hover:bg-hover">
+              <tr
+                key={r.profile}
+                onClick={() => onSelect?.(r.profile)}
+                className={`cursor-pointer ${selected.includes(r.profile) ? 'bg-brand/10' : 'hover:bg-hover'}`}
+              >
                 <td className="td">
                   <div className="font-medium text-ink">{r.profile}</div>
                   <div className="mt-1.5 w-32"><MiniBar value={r.inquiries} max={maxInq} /></div>
