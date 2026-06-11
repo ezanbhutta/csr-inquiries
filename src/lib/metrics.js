@@ -299,11 +299,24 @@ export function duplicateClients(records) {
 }
 
 // Lost-reason analysis — classify the Notes on "Not Placed" leads.
+// Synonyms and the many sheet misspellings fold into one canonical reason each
+// (e.g. all the "waiting/wating/witing client response" variants -> Awaiting
+// reply). Order matters: a decisive reason wins over a pending/in-progress one.
 const LOST_REASONS = [
-  ['Scam / Spam', /scam|spam|fraud|fake/i],
-  ['Budget', /budget|expensive|too\s*much|pric(e|ing)|cheap|afford|costly|low\s*-?ball/i],
-  ['Out of scope', /out\s*of\s*scope|not\s*our|can'?t\s*do|cannot\s*do|not\s*possible|unable|don'?t\s*offer|not\s*offer/i],
-  ['No response', /no\s*response|no\s*reply|didn'?t\s*repl|not\s*respond|unrespons|ghost|left\s*on\s*seen|no\s*answer|never\s*replied|seen\s*zoned/i],
+  ['Scam / Spam', /scam|spam|fraud|\bfake\b|fiverr\s*block/i],
+  [
+    'Chose another seller',
+    /ano(?:t)?her\s*(?:seller|designer|buyer|agency|provider|side)|cho(?:o|0)?se?d?\s*another|hired\s+\w+\s*(?:seller|designer|buyer)?|(?:better|other)\s*(?:option|seller|designer|buyer)|found\s*(?:a\s*)?better|(?:go|gon|going|went|move\w*)\s*(?:forward\s*)?with\s*another|select\w*\s*another|order\s*plac\w*\s*(?:to\s*)?(?:the\s*)?another|plac\w*\s*the\s*order\s*(?:to|another)/i,
+  ],
+  ['Budget', /budg|afford|expensiv|too\s*(?:much|high|costly|low)|low\s*-?ball|price\s*(?:too|is|was|high)|out\s*of\s*budget/i],
+  ['No response', /\bno+\s*response|not\s*respond|not\s*repl|\bno\s*repl|did?\s*n.?t\s*repl|no\s*answer|not\s*response\b/i],
+  ['Meeting', /meeting|zoom|google\s*meet|\bcall\s*(?:schedul|set|book)|schedul\w*\s*(?:a\s*)?(?:call|meeting)/i],
+  ['Custom offer', /offer|quote|package|pricing/i],
+  ['Following up', /follow.?up/i],
+  [
+    'Awaiting reply',
+    /await|wait\w*|wat[ie]ng|witing|wting|respons|respon|resposne|repon\w*|feedback|final\s*reply|first\s*response|client\s*respo|for\s*(?:his|her|the|client'?s?)?\s*-?\s*respon|get\s*back\s*to\s*you|need(?:s)?\s*(?:some\s*)?time|ask\w*\s*for\s*(?:some\s*)?time|i\s*will\s*confirm|in\s*process|on\s*cr\b|chat\s*continue/i,
+  ],
 ]
 export function classifyLostReason(notes) {
   const s = String(notes || '')
