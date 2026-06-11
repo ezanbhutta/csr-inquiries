@@ -22,7 +22,7 @@ export default function ProfileTable({ rows, selected = [], onSelect }) {
     setSort((s) => (s.key === key ? { key, dir: -s.dir } : { key, dir: key === 'profile' ? 1 : -1 }))
 
   return (
-    <Card title="By profile" subtitle="Click a profile to see only its inquiries · click again to clear">
+    <Card title="By profile" subtitle="Click a profile to open its full inquiry log">
       <div className="overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>

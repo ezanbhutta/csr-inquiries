@@ -12,29 +12,31 @@ function Dots({ n }) {
   )
 }
 
-function DaysAgo({ d }) {
-  if (d == null) return <span className="text-dim">—</span>
-  const tone = d > 7 ? 'text-coral' : d > 3 ? 'text-amber' : 'text-muted'
-  return <span className={tone}>{d}d ago</span>
+function StatusBadge({ closed }) {
+  return closed ? (
+    <span className="rounded-full bg-raised px-2 py-0.5 text-[11px] font-semibold text-dim">Closed</span>
+  ) : (
+    <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">Active</span>
+  )
 }
 
 const PAGE = 40
 const MAX = 300
 
 export default function FollowUps({ stats }) {
-  const { leads, funnel, byProfile, openTotal, zeroOpenCount, zeroOpenPct, avgTouches, due, dueWindowDays } = stats
+  const { leads, funnel, byProfile, openTotal, activeCount, closedCount, zeroOpenCount, zeroOpenPct, avgTouches } = stats
   const [touch, setTouch] = useState(null) // null | 0 | 1 | 2 | 3
   const [profileF, setProfileF] = useState(null)
   const [q, setQ] = useState('')
-  const [dueOnly, setDueOnly] = useState(false)
-  const [sort, setSort] = useState({ key: 'daysSince', dir: -1 })
+  const [status, setStatus] = useState('all') // all | active | closed
+  const [sort, setSort] = useState({ key: 'followups', dir: 1 })
   const [expanded, setExpanded] = useState(false)
 
   const filtered = useMemo(() => {
     let rows = leads
     if (touch != null) rows = rows.filter((r) => r.followups === touch)
     if (profileF) rows = rows.filter((r) => r.profile === profileF)
-    if (dueOnly) rows = rows.filter((r) => r.due)
+    if (status !== 'all') rows = rows.filter((r) => (status === 'closed' ? r.closed : !r.closed))
     const term = q.trim().toLowerCase()
     if (term) rows = rows.filter((r) => r.client.toLowerCase().includes(term))
     const dir = sort.dir
@@ -44,7 +46,7 @@ export default function FollowUps({ stats }) {
       if (typeof av === 'string') return dir * String(av).localeCompare(String(bv))
       return dir * ((av ?? -1) - (bv ?? -1))
     })
-  }, [leads, touch, profileF, dueOnly, q, sort])
+  }, [leads, touch, profileF, status, q, sort])
 
   const shown = filtered.slice(0, expanded ? MAX : PAGE)
   const maxCount = Math.max(1, ...funnel.map((f) => f.count))
@@ -59,22 +61,22 @@ export default function FollowUps({ stats }) {
         className="rounded-xl border px-4 py-3 text-sm"
         style={{ background: '#F1EBFF', borderColor: '#D9C9FF', color: '#5E1FD8' }}
       >
-        📈 ~80% of sales need <b>5+ follow-ups</b>, yet ~44% of reps stop after one. Right now{' '}
-        <b>{zeroOpenPct}%</b> of your <b>{fmt(openTotal)}</b> open leads have had <b>zero</b> follow-ups —
-        <b> {fmt(due.length)}</b> are due for one now (under 3 touches, last contacted within {dueWindowDays} days).
+        📈 ~80% of sales need <b>5+ follow-ups</b>, yet ~44% of reps stop after one. Of your{' '}
+        <b>{fmt(openTotal)}</b> open leads, <b>{fmt(activeCount)}</b> still need a follow-up (under 3 touches) and{' '}
+        <b>{fmt(zeroOpenPct)}%</b> have had none. The <b>{fmt(closedCount)}</b> with all 3 done and no response are closed.
       </p>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat label="Open leads" value={fmt(openTotal)} sub="Not Placed, not yet won" />
+        <Stat label="Need follow-up" tone="accent" value={fmt(activeCount)} sub="open leads, under 3 touches" />
         <Stat label="Zero follow-ups" tone="warn" value={fmt(zeroOpenCount)} sub={`${zeroOpenPct}% of open leads`} />
         <Stat label="Avg touches / lead" value={avgTouches} sub="across open leads" />
-        <Stat label={`Due now (≤${dueWindowDays}d)`} tone="accent" value={fmt(due.length)} sub="under 3 touches" />
+        <Stat label="Closed" value={fmt(closedCount)} sub="3 done, no response" />
       </div>
 
       {/* Funnel + coverage */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card title="Open leads by # of follow-ups" subtitle="Click a row to filter the list below">
+        <Card title="Open leads by # of follow-ups" subtitle="Click a row to filter the list below · 3 done = closed">
           <div className="space-y-2">
             {funnel.map((f) => {
               const active = touch === f.touches
@@ -88,6 +90,7 @@ export default function FollowUps({ stats }) {
                   <div className="mb-1 flex items-center justify-between text-sm">
                     <span className="flex items-center gap-2 font-medium text-ink">
                       <Dots n={f.touches} /> {f.touches} follow-up{f.touches === 1 ? '' : 's'}
+                      {f.touches === 3 && <span className="text-xs font-normal text-dim">(closed)</span>}
                     </span>
                     <span className="text-muted">{fmt(f.count)} · {f.share}%</span>
                   </div>
@@ -108,6 +111,7 @@ export default function FollowUps({ stats }) {
                   <th className="th">Profile</th>
                   <th className="th text-right">Open</th>
                   <th className="th text-right">0 follow-ups</th>
+                  <th className="th text-right">Closed</th>
                   <th className="th text-right">Avg</th>
                 </tr>
               </thead>
@@ -128,6 +132,7 @@ export default function FollowUps({ stats }) {
                     <td className="td text-right tabular-nums">
                       <span className={p.zeroPct >= 50 ? 'text-coral' : 'text-muted'}>{fmt(p.zero)} · {p.zeroPct}%</span>
                     </td>
+                    <td className="td text-right tabular-nums text-dim">{fmt(p.closed)}</td>
                     <td className="td text-right tabular-nums text-muted">{p.avgTouches}</td>
                   </tr>
                 ))}
@@ -161,12 +166,17 @@ export default function FollowUps({ stats }) {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setDueOnly((v) => !v)}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${dueOnly ? 'border-brand bg-brand/10 text-brand' : 'border-line text-dim hover:text-ink'}`}
-          >
-            Due now only
-          </button>
+          <div className="flex items-center gap-1 rounded-lg border border-line bg-raised p-1">
+            {['all', 'active', 'closed'].map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatus(s)}
+                className={`rounded-md px-2.5 py-1 text-xs font-semibold capitalize transition ${status === s ? 'bg-brand text-white' : 'text-dim hover:text-ink'}`}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
           {profileF && (
             <button onClick={() => setProfileF(null)} className="pill border-brand/40 text-brand">
               {profileF} ✕
@@ -181,9 +191,8 @@ export default function FollowUps({ stats }) {
                 <th className="th cursor-pointer" onClick={() => toggleSort('client')}>Client{arrow('client')}</th>
                 <th className="th cursor-pointer" onClick={() => toggleSort('profile')}>Profile{arrow('profile')}</th>
                 <th className="th">Shift</th>
-                <th className="th">Follow-ups</th>
-                <th className="th">Last contact</th>
-                <th className="th cursor-pointer text-right" onClick={() => toggleSort('daysSince')}>Waiting{arrow('daysSince')}</th>
+                <th className="th cursor-pointer" onClick={() => toggleSort('followups')}>Follow-ups{arrow('followups')}</th>
+                <th className="th">Status</th>
                 <th className="th">Next</th>
               </tr>
             </thead>
@@ -194,13 +203,14 @@ export default function FollowUps({ stats }) {
                   <td className="td whitespace-nowrap text-muted">{r.profile}</td>
                   <td className="td whitespace-nowrap text-muted">{r.shift}</td>
                   <td className="td"><Dots n={r.followups} /></td>
-                  <td className="td whitespace-nowrap text-muted">{r.lastContact || '—'}</td>
-                  <td className="td whitespace-nowrap text-right"><DaysAgo d={r.daysSince} /></td>
-                  <td className="td whitespace-nowrap">{r.followups < 3 ? <span className="text-brand">#{r.followups + 1}</span> : <span className="text-mint">✓ done</span>}</td>
+                  <td className="td"><StatusBadge closed={r.closed} /></td>
+                  <td className="td whitespace-nowrap">
+                    {r.closed ? <span className="text-dim">—</span> : <span className="text-brand">Follow-up #{r.followups + 1}</span>}
+                  </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={7} className="td text-center text-dim">No leads match these filters.</td></tr>
+                <tr><td colSpan={6} className="td text-center text-dim">No leads match these filters.</td></tr>
               )}
             </tbody>
           </table>

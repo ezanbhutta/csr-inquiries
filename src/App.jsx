@@ -20,6 +20,7 @@ import Gate, { isUnlocked } from './components/Gate.jsx'
 import TimeChart from './components/TimeChart.jsx'
 import DataQuality from './components/DataQuality.jsx'
 import FollowUps from './components/FollowUps.jsx'
+import LogPage from './components/LogPage.jsx'
 import CountryBreakdown from './components/CountryBreakdown.jsx'
 import DateRangePicker from './components/DateRangePicker.jsx'
 import ProfileTable from './components/ProfileTable.jsx'
@@ -37,9 +38,15 @@ const PRESET_LABELS = {
   custom: 'Custom',
 }
 
-const viewFromHash = () => {
-  const h = (typeof location !== 'undefined' && location.hash) || ''
-  return h === '#errors' ? 'errors' : h === '#followups' ? 'followups' : 'dashboard'
+const parseHash = () => {
+  const h = ((typeof location !== 'undefined' && location.hash) || '').replace(/^#/, '')
+  if (h === 'errors') return { view: 'errors' }
+  if (h === 'followups') return { view: 'followups' }
+  if (h.startsWith('log/')) {
+    const parts = h.split('/')
+    return { view: 'log', logType: parts[1] === 'shift' ? 'shift' : 'profile', logValue: decodeURIComponent(parts.slice(2).join('/')) }
+  }
+  return { view: 'dashboard' }
 }
 
 function shiftRangeBack({ from, to }) {
@@ -120,7 +127,8 @@ export default function App() {
   const [customEnd, setCustomEnd] = useState(null)
   const [profiles, setProfiles] = useState([])
   const [shifts, setShifts] = useState([])
-  const [view, setView] = useState(viewFromHash)
+  const [route, setRoute] = useState(parseHash)
+  const view = route.view
 
   const refresh = async () => {
     setLoading(true)
@@ -144,7 +152,7 @@ export default function App() {
   }, [unlocked])
 
   useEffect(() => {
-    const h = () => setView(viewFromHash())
+    const h = () => setRoute(parseHash())
     window.addEventListener('hashchange', h)
     return () => window.removeEventListener('hashchange', h)
   }, [])
@@ -165,19 +173,11 @@ export default function App() {
 
   const k = useMemo(() => kpis(filtered), [filtered])
   const kPrev = useMemo(() => kpis(prevFiltered), [prevFiltered])
-  // Breakdown panels stay full "pickers": the profile list ignores the profile
-  // filter (and vice-versa) so you can always click another to isolate it,
-  // while the rest of the dashboard reflects the selection.
-  const filteredNoProfile = useMemo(
-    () => applyFilters(rows, { shifts, from: range.from, to: range.to }),
-    [rows, shifts, range],
+  const prof = useMemo(
+    () => byProfile(filtered, profiles.length ? profiles : PROFILES),
+    [filtered, profiles],
   )
-  const filteredNoShift = useMemo(
-    () => applyFilters(rows, { profiles, from: range.from, to: range.to }),
-    [rows, profiles, range],
-  )
-  const prof = useMemo(() => byProfile(filteredNoProfile, PROFILES), [filteredNoProfile])
-  const shiftRows = useMemo(() => byShift(filteredNoShift), [filteredNoShift])
+  const shiftRows = useMemo(() => byShift(filtered), [filtered])
   const countryRows = useMemo(() => byCountry(filtered), [filtered])
   const daySeries = useMemo(() => withRollingRate(byDay(filtered)), [filtered])
   const statusRows = useMemo(() => byStatus(filtered), [filtered])
@@ -190,6 +190,13 @@ export default function App() {
     [rows, orphans],
   )
 
+  // Per-profile / per-shift log: every inquiry, newest first (undated last).
+  const logRows = useMemo(() => {
+    if (route.view !== 'log') return []
+    const match = route.logType === 'shift' ? (r) => r.shift === route.logValue : (r) => r.profile === route.logValue
+    return rows.filter(match).sort((a, b) => (b.ts ?? -Infinity) - (a.ts ?? -Infinity))
+  }, [rows, route])
+
   if (!unlocked) return <Gate onUnlock={() => setUnlocked(true)} />
 
   const rangeLabel =
@@ -198,8 +205,12 @@ export default function App() {
       : `${PRESET_LABELS[preset] || preset} · ${range.from || '—'} → ${range.to || '—'}`
 
   const go = (v) => {
-    location.hash = v === 'dashboard' ? '' : '#' + v
-    setView(v)
+    location.hash = v === 'dashboard' ? '' : v
+    setRoute(parseHash())
+  }
+  const openLog = (type, value) => {
+    location.hash = `log/${type}/${encodeURIComponent(value)}`
+    setRoute(parseHash())
   }
 
   const exportPdf = async () => {
@@ -243,9 +254,9 @@ export default function App() {
               </button>
               <button className={`seg ${view === 'followups' ? 'seg-on' : ''}`} onClick={() => go('followups')}>
                 Follow-ups
-                {fuStats.due.length > 0 && (
+                {fuStats.activeCount > 0 && (
                   <span className="ml-1.5 rounded-full bg-amber px-1.5 py-0.5 text-[10px] font-bold text-white">
-                    {fmt(fuStats.due.length)}
+                    {fmt(fuStats.activeCount)}
                   </span>
                 )}
               </button>
@@ -273,7 +284,20 @@ export default function App() {
         </div>
       </header>
 
-      {view === 'errors' ? (
+      {view === 'log' ? (
+        <main className="mx-auto max-w-[88rem] px-4 py-6 sm:px-6">
+          <div className="mb-5 flex flex-wrap items-center gap-3">
+            <button className="btn" onClick={() => go('dashboard')}>← Back</button>
+            <div>
+              <h1 className="disp text-2xl font-bold text-ink">{route.logValue}</h1>
+              <p className="mt-0.5 text-sm text-muted">
+                Full inquiry log · {route.logType === 'shift' ? 'Shift' : 'Profile'} · newest first
+              </p>
+            </div>
+          </div>
+          <LogPage rows={logRows} />
+        </main>
+      ) : view === 'errors' ? (
         <main className="mx-auto max-w-[88rem] px-4 py-6 sm:px-6">
           <div className="mb-5">
             <h1 className="disp text-2xl font-bold text-ink">Errors</h1>
@@ -363,18 +387,10 @@ export default function App() {
               )}
             </div>
             <div className="lg:col-span-2">
-              <ProfileTable
-                rows={prof}
-                selected={profiles}
-                onSelect={(p) => setProfiles(profiles.length === 1 && profiles[0] === p ? [] : [p])}
-              />
+              <ProfileTable rows={prof} onSelect={(p) => openLog('profile', p)} />
             </div>
             <div className="lg:col-span-1">
-              <ShiftBreakdown
-                rows={shiftRows}
-                selected={shifts}
-                onSelect={(s) => setShifts(shifts.length === 1 && shifts[0] === s ? [] : [s])}
-              />
+              <ShiftBreakdown rows={shiftRows} onSelect={(s) => openLog('shift', s)} />
             </div>
             <div className="lg:col-span-2">
               <CountryBreakdown rows={countryRows} />

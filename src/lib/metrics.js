@@ -110,19 +110,15 @@ export function byCountry(rows, topN = 12) {
 
 // Follow-up requirements system. Follow Up 1/2/3 give a 0–3 touch count.
 // Open lead = Not Placed and not converted; best practice = keep following up.
-export function followupStats(rows, { dueWindowDays = 21 } = {}) {
+export function followupStats(rows) {
   // Placed & Direct Orders are already won — follow-ups don't apply, so they're
-  // excluded. Only open (Not Placed) leads are in scope.
-  const now = Date.now()
-  const daysSince = (r) => {
-    const ts = r.lastContactTs || r.ts
-    return ts ? Math.floor((now - ts) / 86_400_000) : null
-  }
+  // excluded. Only open (Not Placed) leads are in scope. A lead that's had all
+  // 3 follow-ups with no response is Closed; under 3 touches = still Active.
   const open = rows
     .filter((r) => r.status === 'Not Placed')
     .map((r) => {
-      const ds = daysSince(r)
       const followups = r.followups || 0
+      const closed = followups >= 3
       return {
         profile: r.profile,
         client: r.client,
@@ -130,10 +126,9 @@ export function followupStats(rows, { dueWindowDays = 21 } = {}) {
         country: r.country,
         followups,
         lastContact: r.lastContact,
-        daysSince: ds,
         date: r.date,
-        // Actionable: under 3 touches and last touched within the window.
-        due: followups < 3 && ds != null && ds <= dueWindowDays,
+        closed,
+        status: closed ? 'Closed' : 'Active',
       }
     })
 
@@ -141,39 +136,40 @@ export function followupStats(rows, { dueWindowDays = 21 } = {}) {
     const count = open.filter((r) => r.followups === touches).length
     return { touches, count, share: pct(count, open.length) }
   })
-  const under = open.filter((r) => r.followups < 3)
+  const active = open.filter((r) => !r.closed) // under 3 touches — still need follow-up
+  const closed = open.filter((r) => r.closed) // 3 done, no response
   const zeroOpen = open.filter((r) => r.followups === 0).length
-  const due = open.filter((r) => r.due).sort((a, b) => b.daysSince - a.daysSince)
 
   // Per-profile follow-up coverage — surfaces which profiles neglect follow-ups.
   const order = new Map(PROFILES.map((p, i) => [p, i]))
   const groups = {}
   open.forEach((r) => {
-    const g = (groups[r.profile] = groups[r.profile] || { open: 0, zero: 0, under: 0, touches: 0 })
+    const g = (groups[r.profile] = groups[r.profile] || { open: 0, zero: 0, active: 0, closed: 0, touches: 0 })
     g.open += 1
     g.touches += r.followups
     if (r.followups === 0) g.zero += 1
-    if (r.followups < 3) g.under += 1
+    if (r.closed) g.closed += 1
+    else g.active += 1
   })
   const byProfile = Object.entries(groups)
     .map(([profile, g]) => ({
       profile,
       open: g.open,
       zero: g.zero,
-      under: g.under,
+      active: g.active,
+      closed: g.closed,
       avgTouches: g.open ? Math.round((g.touches / g.open) * 100) / 100 : 0,
       zeroPct: pct(g.zero, g.open),
     }))
-    .sort((a, b) => b.zero - a.zero || (order.get(a.profile) ?? 99) - (order.get(b.profile) ?? 99))
+    .sort((a, b) => b.active - a.active || (order.get(a.profile) ?? 99) - (order.get(b.profile) ?? 99))
 
   return {
     leads: open,
     funnel,
-    due,
     byProfile,
-    dueWindowDays,
     openTotal: open.length,
-    underCount: under.length,
+    activeCount: active.length,
+    closedCount: closed.length,
     zeroOpenCount: zeroOpen,
     zeroOpenPct: pct(zeroOpen, open.length),
     avgTouches: open.length

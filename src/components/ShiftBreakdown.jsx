@@ -11,7 +11,7 @@ const TONE = {
 export default function ShiftBreakdown({ rows, selected = [], onSelect }) {
   const total = rows.reduce((s, r) => s + r.inquiries, 0)
   return (
-    <Card title="By shift" subtitle="Click a shift to see only its inquiries · click again to clear">
+    <Card title="By shift" subtitle="Click a shift to open its full inquiry log">
       <div className="space-y-1.5">
         {rows.map((r) => {
           const share = total > 0 ? Math.round((r.inquiries / total) * 100) : 0
