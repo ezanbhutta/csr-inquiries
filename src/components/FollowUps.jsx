@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Card, RateBadge, fmt } from './ui.jsx'
+import { Card, fmt } from './ui.jsx'
 
 // 3 sequential follow-up slots, filled = done.
 function Dots({ n }) {
@@ -27,13 +27,13 @@ const LIMIT = 20
 export default function FollowUps({ stats }) {
   const [expanded, setExpanded] = useState(false)
   const { funnel, openTotal, underCount, zeroOpenPct, avgTouches, due } = stats
-  const maxInq = Math.max(1, ...funnel.map((f) => f.inquiries))
+  const maxCount = Math.max(1, ...funnel.map((f) => f.count))
   const shown = expanded ? due : due.slice(0, LIMIT)
 
   return (
     <Card
       title="Follow-up system"
-      subtitle="Follow Up 1·2·3 → touches per lead. Open lead = Not Placed & not yet won."
+      subtitle="Open (Not Placed) leads only — Placed & Direct Orders are already won, so they're excluded."
       right={
         <span className="pill border-brand/40 text-brand">avg {avgTouches} / open lead</span>
       }
@@ -52,7 +52,7 @@ export default function FollowUps({ stats }) {
         {/* Funnel: conversion by # of follow-ups */}
         <div>
           <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-dim">
-            Conversion by # of follow-ups
+            Open leads by # of follow-ups
           </div>
           <div className="space-y-3">
             {funnel.map((f) => (
@@ -61,14 +61,12 @@ export default function FollowUps({ stats }) {
                   <span className="flex items-center gap-2 font-medium text-ink">
                     <Dots n={f.touches} /> {f.touches} follow-up{f.touches === 1 ? '' : 's'}
                   </span>
-                  <span className="text-muted">
-                    {fmt(f.inquiries)} · <RateBadge rate={f.conversionRate} />
-                  </span>
+                  <span className="text-muted">{fmt(f.count)} · {f.share}%</span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-raised">
                   <div
                     className="h-full rounded-full bg-brand"
-                    style={{ width: `${Math.round((f.inquiries / maxInq) * 100)}%` }}
+                    style={{ width: `${Math.round((f.count / maxCount) * 100)}%` }}
                   />
                 </div>
               </div>

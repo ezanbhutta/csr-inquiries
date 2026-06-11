@@ -101,6 +101,17 @@ Set via `.env.local` (dev) or Vercel env vars — see `.env.example`:
 > stronger protection put the deployment behind Vercel password protection / SSO, or an
 > auth proxy.
 
+## Deploy — GitHub Pages (automatic)
+
+`.github/workflows/deploy.yml` builds and publishes to **GitHub Pages** on every
+push to `main`. The workflow tries to enable Pages automatically; if it can't,
+enable it once at **Settings → Pages → Source: GitHub Actions** and re-run.
+
+- Live URL: `https://ezanbhutta.github.io/csr-inquiries/`
+- The build sets Vite's `base` to `/csr-inquiries/` via the `GITHUB_PAGES` env var.
+- App routing is hash-based (`#errors`), so no SPA rewrite config is needed.
+- Optional: set a `VITE_DASH_PASSWORD` repo secret to override the default password.
+
 ## Deploy (Vercel)
 
 1. Import the repo into Vercel (framework auto-detects as **Vite**; `vercel.json` is included).
