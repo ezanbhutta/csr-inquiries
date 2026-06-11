@@ -38,7 +38,7 @@ const LEGEND = [
   { id: 'rest', label: 'Not converted', color: '#C9B6FF' },
 ]
 
-export default function TimeChart({ data }) {
+export default function TimeChart({ data, onSelect }) {
   const [show, setShow] = useState({ converted: true, rest: true })
   const series = data.map((d) => ({ ...d, rest: Math.max(0, d.inquiries - d.converted) }))
   const toggle = (id) => setShow((s) => ({ ...s, [id]: !s[id] }))
@@ -46,14 +46,19 @@ export default function TimeChart({ data }) {
   return (
     <Card
       title="Inquiries & conversion over time"
-      subtitle="Each bar is a day's inquiries — the green part is what converted. Tap a chip to toggle a series."
+      subtitle="Each bar is a day's inquiries — green is what converted. Tap a bar to open that day's log; tap a chip to toggle a series."
     >
       {data.length === 0 ? (
         <div className="grid h-64 place-items-center text-sm text-dim">No dated inquiries in this range.</div>
       ) : (
         <>
           <ResponsiveContainer width="100%" height={300}>
-            <ComposedChart data={series} margin={{ top: 10, right: 6, bottom: 0, left: -20 }}>
+            <ComposedChart
+              data={series}
+              margin={{ top: 10, right: 6, bottom: 0, left: -20 }}
+              onClick={(e) => e?.activeLabel && onSelect?.(e.activeLabel)}
+              style={{ cursor: 'pointer' }}
+            >
               <defs>
                 <linearGradient id="gWin" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#10B981" stopOpacity={0.95} />

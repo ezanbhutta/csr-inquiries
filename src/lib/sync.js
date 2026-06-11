@@ -100,7 +100,12 @@ export function parseTab(profile, csvText) {
 export async function syncAll({ onProgress } = {}) {
   const results = await Promise.allSettled(
     PROFILES.map(async (profile) => {
-      const res = await fetch(gvizCsvUrl(profile), { redirect: 'follow' })
+      // Cache-bust + no-store so every sync pulls the very latest sheet data
+      // (the localStorage cache only provides the instant first paint).
+      const res = await fetch(`${gvizCsvUrl(profile)}&_=${Date.now()}`, {
+        redirect: 'follow',
+        cache: 'no-store',
+      })
       if (!res.ok) throw new Error(`${profile}: HTTP ${res.status}`)
       const text = await res.text()
       const parsed = parseTab(profile, text)
