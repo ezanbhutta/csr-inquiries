@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { PROFILES, SHIFTS, UNASSIGNED } from './lib/config.js'
+import { PROFILES, ROSTER, SHIFTS, UNASSIGNED } from './lib/config.js'
 import { loadCache, saveCache, syncAll } from './lib/sync.js'
 import {
   applyFilters,
@@ -27,6 +27,7 @@ import CountryBreakdown from './components/CountryBreakdown.jsx'
 import LostReasons from './components/LostReasons.jsx'
 import DuplicateClients from './components/DuplicateClients.jsx'
 import DateRangePicker from './components/DateRangePicker.jsx'
+import RosterPage from './components/RosterPage.jsx'
 import ProfileTable from './components/ProfileTable.jsx'
 import ShiftBreakdown from './components/ShiftBreakdown.jsx'
 import StatusBreakdown from './components/StatusBreakdown.jsx'
@@ -42,12 +43,13 @@ const PRESET_LABELS = {
   custom: 'Custom',
 }
 
-const LOG_LABEL = { profile: 'Profile', shift: 'Shift', country: 'Country', status: 'Status', date: 'Day', client: 'Client' }
+const LOG_LABEL = { profile: 'Profile', shift: 'Shift', country: 'Country', status: 'Status', date: 'Day', client: 'Client', csr: 'CSR' }
 
 const parseHash = () => {
   const h = ((typeof location !== 'undefined' && location.hash) || '').replace(/^#/, '')
   if (h === 'errors') return { view: 'errors' }
   if (h === 'followups') return { view: 'followups' }
+  if (h === 'roster') return { view: 'roster' }
   if (h.startsWith('log/')) {
     const parts = h.split('/')
     return { view: 'log', logType: parts[1] || 'profile', logValue: decodeURIComponent(parts.slice(2).join('/')) }
@@ -191,6 +193,13 @@ export default function App() {
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
 
   const lostData = useMemo(() => lostReasons(filtered), [filtered])
+  const csrCounts = useMemo(() => {
+    const m = {}
+    rows.forEach((r) => {
+      if (r.csr) m[r.csr] = (m[r.csr] || 0) + 1
+    })
+    return m
+  }, [rows])
 
   // Errors: only inquiries from June 2026 onward (all profiles).
   const errorRecords = useMemo(() => [...rows, ...orphans].filter(inErrorScope), [rows, orphans])
@@ -225,6 +234,7 @@ export default function App() {
       status: (r) => (r.status || 'No status') === v,
       date: (r) => r.date === v,
       client: (r) => (r.client || '').toLowerCase() === String(v).toLowerCase(),
+      csr: (r) => (r.csr || '').toLowerCase() === String(v).toLowerCase(),
     }
     const match = matchers[route.logType] || matchers.profile
     return [...rows, ...orphans].filter(match).sort((a, b) => (b.ts ?? -Infinity) - (a.ts ?? -Infinity))
@@ -304,6 +314,9 @@ export default function App() {
                   </span>
                 )}
               </button>
+              <button className={`seg ${view === 'roster' ? 'seg-on' : ''}`} onClick={() => go('roster')}>
+                Roster
+              </button>
             </nav>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -329,6 +342,16 @@ export default function App() {
             </div>
           </div>
           <LogPage rows={logRows} />
+        </main>
+      ) : view === 'roster' ? (
+        <main className="mx-auto max-w-[88rem] px-4 py-6 sm:px-6">
+          <div className="mb-5">
+            <h1 className="disp text-2xl font-bold text-ink">Roster</h1>
+            <p className="mt-0.5 text-sm text-muted">
+              The team by shift (from CSR Pulse). Each name shows inquiries it has handled — click to open that CSR's log.
+            </p>
+          </div>
+          <RosterPage roster={ROSTER} counts={csrCounts} onSelect={(name) => openLog('csr', name)} />
         </main>
       ) : view === 'errors' ? (
         <main className="mx-auto max-w-[88rem] px-4 py-6 sm:px-6">

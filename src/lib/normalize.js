@@ -152,7 +152,7 @@ export function normalizeShift(raw) {
 }
 
 // --- CSR matching (mirrors CSR Pulse matchCsr_) -----------------------------
-const ROSTER_FLAT = Object.values(ROSTER).flat()
+const ROSTER_FLAT = ROSTER.map((r) => r.name)
 
 export function matchCsr(raw) {
   const s = clean(raw).toLowerCase().replace(/[^\w\s,/&;]/g, '')
