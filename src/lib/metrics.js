@@ -118,7 +118,10 @@ export function followupStats(rows) {
     .filter((r) => r.status === 'Not Placed')
     .map((r) => {
       const followups = r.followups || 0
-      const closed = followups >= 3
+      // A clear Note (spam, ordered elsewhere, "no need to follow up") closes a
+      // lead even before the 3rd touch — there's no point chasing it.
+      const closedByNote = followups < 3 && noFollowUpNeeded(r.notes)
+      const closed = followups >= 3 || closedByNote
       return {
         profile: r.profile,
         client: r.client,
@@ -127,18 +130,35 @@ export function followupStats(rows) {
         followups,
         lastContact: r.lastContact,
         date: r.date,
+        notes: r.notes,
         closed,
+        closedByNote,
+        // Closed leads carry a client-attributed reason; active leads don't.
+        closeReason: closed ? closeReason(r.notes) : null,
         status: closed ? 'Closed' : 'Active',
       }
     })
 
+  // Touch funnel = the live follow-up pipeline. Note-closed leads are out of the
+  // pipeline, so they're excluded; the 0-touch bar then equals the gap below.
+  const pipeline = open.filter((r) => !r.closedByNote)
   const funnel = [0, 1, 2, 3].map((touches) => {
-    const count = open.filter((r) => r.followups === touches).length
-    return { touches, count, share: pct(count, open.length) }
+    const count = pipeline.filter((r) => r.followups === touches).length
+    return { touches, count, share: pct(count, pipeline.length) }
   })
-  const active = open.filter((r) => !r.closed) // under 3 touches — still need follow-up
-  const closed = open.filter((r) => r.closed) // 3 done, no response
-  const zeroOpen = open.filter((r) => r.followups === 0).length
+  const active = open.filter((r) => !r.closed) // still need follow-up
+  const closed = open.filter((r) => r.closed) // 3 touches done, or Note says stop
+  const zeroOpen = active.filter((r) => r.followups === 0).length // real gap only
+
+  // Closed leads grouped by disposition — all client-side, not missed follow-ups.
+  const reasonOrder = new Map(
+    ['Client rejected', 'Chose another seller', 'Spam', 'No response'].map((r, i) => [r, i]),
+  )
+  const reasonCounts = {}
+  closed.forEach((r) => (reasonCounts[r.closeReason] = (reasonCounts[r.closeReason] || 0) + 1))
+  const closedReasons = Object.entries(reasonCounts)
+    .map(([reason, count]) => ({ reason, count, share: pct(count, closed.length) }))
+    .sort((a, b) => b.count - a.count || (reasonOrder.get(a.reason) ?? 9) - (reasonOrder.get(b.reason) ?? 9))
 
   // Per-profile follow-up coverage — surfaces which profiles neglect follow-ups.
   const order = new Map(PROFILES.map((p, i) => [p, i]))
@@ -147,7 +167,7 @@ export function followupStats(rows) {
     const g = (groups[r.profile] = groups[r.profile] || { open: 0, zero: 0, active: 0, closed: 0, touches: 0 })
     g.open += 1
     g.touches += r.followups
-    if (r.followups === 0) g.zero += 1
+    if (!r.closed && r.followups === 0) g.zero += 1
     if (r.closed) g.closed += 1
     else g.active += 1
   })
@@ -167,6 +187,7 @@ export function followupStats(rows) {
     leads: open,
     funnel,
     byProfile,
+    closedReasons,
     openTotal: open.length,
     activeCount: active.length,
     closedCount: closed.length,
@@ -324,6 +345,33 @@ export function classifyLostReason(notes) {
   for (const [reason, re] of LOST_REASONS) if (re.test(s)) return reason
   return s.trim() ? 'Other' : 'No note'
 }
+
+// A Note can make it clear a lead is dead and needs no further follow-up —
+// spam/scam, the client ordered with another seller, or an explicit "no need to
+// follow up / not interested / dead lead". Such leads are Closed even before the
+// 3rd touch, so they drop out of the active backlog and the zero-follow-up gap.
+const NO_FOLLOWUP_RE =
+  /no\s*(?:need|point|use|reason)\s*(?:to|of|in|for)?\s*(?:follow|reply|contact|chase|respond|pursu)|(?:do\s*n.?t|don.?t|dont|stop|never)\s*(?:bother\s*)?(?:to\s*)?follow|follow.?up\s*not\s*(?:need|require)|not\s*(?:interest|intrest)|no\s*longer\s*(?:interest|intrest)|not\s*(?:a\s*)?serious|dead\s*lead|lead\s*(?:is\s*)?(?:dead|lost|closed)|close\s*(?:this\s*)?lead|won.?t\s*(?:order|buy|proceed)|time\s*wast|wast\w*\s*(?:my|our|the)?\s*time|wrong\s*number/i
+export function noFollowUpNeeded(notes) {
+  const s = String(notes || '')
+  if (!s.trim()) return false
+  if (NO_FOLLOWUP_RE.test(s)) return true
+  const reason = classifyLostReason(s)
+  return reason === 'Scam / Spam' || reason === 'Chose another seller'
+}
+
+// Why a Not-Placed lead is Closed — phrased as the disposition, so the outcome
+// reads as the client's call (or a non-genuine lead), not a missed follow-up.
+// "No response" is the lead that got all 3 touches and never replied.
+export function closeReason(notes) {
+  const s = String(notes || '')
+  const reason = classifyLostReason(s)
+  if (reason === 'Scam / Spam') return 'Spam'
+  if (reason === 'Chose another seller') return 'Chose another seller'
+  if (NO_FOLLOWUP_RE.test(s)) return 'Client rejected'
+  return 'No response'
+}
+
 export function lostReasons(rows) {
   const lost = rows.filter((r) => !r.converted && r.status === 'Not Placed')
   const counts = {}
