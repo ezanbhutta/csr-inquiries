@@ -438,7 +438,7 @@ export default function App() {
             <h1 className="disp text-2xl font-bold text-ink">Follow-ups</h1>
             <p className="mt-0.5 text-sm text-muted">
               Open (Not Placed) leads from <b>June 2026 onward</b> — Placed &amp; Direct Orders are already
-              won. Under 3 touches = active; 3 done with no response = closed. Search, filter and sort to work the queue.
+              won. A lead is active until it&rsquo;s closed — 3 follow-ups done, or the Note shows it&rsquo;s dead. Work the queue below.
             </p>
           </div>
           <FollowUps stats={fuStats} />
