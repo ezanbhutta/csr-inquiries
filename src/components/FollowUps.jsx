@@ -63,20 +63,21 @@ export default function FollowUps({ stats }) {
         style={{ background: '#F1EBFF', borderColor: '#D9C9FF', color: '#5E1FD8' }}
       >
         📈 ~80% of sales need <b>5+ follow-ups</b>, yet ~44% of reps stop after one. Of your{' '}
-        <b>{fmt(openTotal)}</b> open leads, <b>{fmt(activeCount)}</b> still need a follow-up (under 3 touches) and{' '}
-        <b>{fmt(zeroOpenPct)}%</b> have had none. The <b>{fmt(closedCount)}</b> with all 3 done and no response are closed.
+        <b>{fmt(openTotal)}</b> open leads, <b>{fmt(activeCount)}</b> still need a follow-up and{' '}
+        <b>{fmt(zeroOpenPct)}%</b> have had none. The <b>{fmt(closedCount)}</b> that are done — all 3 follow-ups sent, or the
+        Note shows it's dead (spam, ordered elsewhere, not interested) — are closed.
       </p>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Stat label="Need follow-up" tone="accent" value={fmt(activeCount)} sub="open leads, under 3 touches" />
+        <Stat label="Need follow-up" tone="accent" value={fmt(activeCount)} sub="active leads, under 3 touches" />
         <Stat label="Zero follow-ups" tone="warn" value={fmt(zeroOpenCount)} sub={`${zeroOpenPct}% of open leads`} />
-        <Stat label="Closed" value={fmt(closedCount)} sub="3 done, no response" />
+        <Stat label="Closed" value={fmt(closedCount)} sub="3 done, or Note says stop" />
       </div>
 
       {/* Funnel + coverage */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card title="Open leads by # of follow-ups" subtitle="Click a row to filter the list below · 3 done = closed">
+        <Card title="Open leads by # of follow-ups" subtitle="Live pipeline — click a row to filter · 3 done = closed · note-closed leads excluded">
           <div className="space-y-2">
             {funnel.map((f) => {
               const active = touch === f.touches
