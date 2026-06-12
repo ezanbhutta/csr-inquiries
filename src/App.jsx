@@ -201,18 +201,22 @@ export default function App() {
     }
   }, [shiftHistory])
 
+  // The whole dashboard is locked to June 2026 onward; the date picker drills
+  // within it. Pre-June data is never shown.
+  const juneRows = useMemo(() => rows.filter(inErrorScope), [rows])
+
   const range = useMemo(
-    () => dateRangePreset(preset, rows, { start: customStart, end: customEnd }),
-    [preset, rows, customStart, customEnd],
+    () => dateRangePreset(preset, juneRows, { start: customStart, end: customEnd }),
+    [preset, juneRows, customStart, customEnd],
   )
   const filtered = useMemo(
-    () => applyFilters(rows, { profiles, shifts, from: range.from, to: range.to }),
-    [rows, profiles, shifts, range],
+    () => applyFilters(juneRows, { profiles, shifts, from: range.from, to: range.to }),
+    [juneRows, profiles, shifts, range],
   )
   const prevRange = useMemo(() => (preset === 'all' ? null : shiftRangeBack(range)), [preset, range])
   const prevFiltered = useMemo(
-    () => (prevRange ? applyFilters(rows, { profiles, shifts, ...prevRange }) : []),
-    [rows, profiles, shifts, prevRange],
+    () => (prevRange ? applyFilters(juneRows, { profiles, shifts, ...prevRange }) : []),
+    [juneRows, profiles, shifts, prevRange],
   )
 
   const k = useMemo(() => kpis(filtered), [filtered])
@@ -222,17 +226,13 @@ export default function App() {
     [filtered, profiles],
   )
   const shiftRows = useMemo(() => byShift(filtered), [filtered])
-  // By country is June 2026 onward only (like Errors/Follow-ups/lost-reasons).
-  const countryRows = useMemo(() => byCountry(rows.filter(inErrorScope)), [rows])
+  const countryRows = useMemo(() => byCountry(juneRows), [juneRows])
   const daySeries = useMemo(() => withRollingRate(byDay(filtered)), [filtered])
-  // Outcome mix is June 2026 onward only (like the other data-quality panels).
-  const statusRows = useMemo(() => byStatus(rows.filter(inErrorScope)), [rows])
-  // Follow-ups, like Errors, only count inquiries from June 2026 onward.
-  const fuStats = useMemo(() => followupStats(rows.filter(inErrorScope)), [rows])
+  const statusRows = useMemo(() => byStatus(juneRows), [juneRows])
+  const fuStats = useMemo(() => followupStats(juneRows), [juneRows])
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
 
-  // "Why leads don't convert" is June 2026 onward only (like Errors/Follow-ups).
-  const lostData = useMemo(() => lostReasons(rows.filter(inErrorScope)), [rows])
+  const lostData = useMemo(() => lostReasons(juneRows), [juneRows])
 
   // Errors: only inquiries from June 2026 onward (all profiles).
   const errorRecords = useMemo(() => [...rows, ...orphans].filter(inErrorScope), [rows, orphans])
@@ -449,6 +449,7 @@ export default function App() {
             <h1 className="disp text-2xl font-bold text-ink">Daily inquiry &amp; conversion</h1>
             <p className="mt-0.5 text-sm text-muted">
               {syncedAt ? `Synced ${new Date(syncedAt).toLocaleString()}` : 'Loading…'}
+              <span className="text-dim"> · June 2026 onward</span>
             </p>
           </div>
 
