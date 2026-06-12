@@ -133,6 +133,8 @@ export function followupStats(rows) {
         notes: r.notes,
         closed,
         closedByNote,
+        // Closed leads carry a client-attributed reason; active leads don't.
+        closeReason: closed ? closeReason(r.notes) : null,
         status: closed ? 'Closed' : 'Active',
       }
     })
@@ -147,6 +149,16 @@ export function followupStats(rows) {
   const active = open.filter((r) => !r.closed) // still need follow-up
   const closed = open.filter((r) => r.closed) // 3 touches done, or Note says stop
   const zeroOpen = active.filter((r) => r.followups === 0).length // real gap only
+
+  // Closed leads grouped by disposition — all client-side, not missed follow-ups.
+  const reasonOrder = new Map(
+    ['Client rejected', 'Chose another seller', 'Spam', 'No response'].map((r, i) => [r, i]),
+  )
+  const reasonCounts = {}
+  closed.forEach((r) => (reasonCounts[r.closeReason] = (reasonCounts[r.closeReason] || 0) + 1))
+  const closedReasons = Object.entries(reasonCounts)
+    .map(([reason, count]) => ({ reason, count, share: pct(count, closed.length) }))
+    .sort((a, b) => b.count - a.count || (reasonOrder.get(a.reason) ?? 9) - (reasonOrder.get(b.reason) ?? 9))
 
   // Per-profile follow-up coverage — surfaces which profiles neglect follow-ups.
   const order = new Map(PROFILES.map((p, i) => [p, i]))
@@ -175,6 +187,7 @@ export function followupStats(rows) {
     leads: open,
     funnel,
     byProfile,
+    closedReasons,
     openTotal: open.length,
     activeCount: active.length,
     closedCount: closed.length,
@@ -345,6 +358,18 @@ export function noFollowUpNeeded(notes) {
   if (NO_FOLLOWUP_RE.test(s)) return true
   const reason = classifyLostReason(s)
   return reason === 'Scam / Spam' || reason === 'Chose another seller'
+}
+
+// Why a Not-Placed lead is Closed — phrased as the disposition, so the outcome
+// reads as the client's call (or a non-genuine lead), not a missed follow-up.
+// "No response" is the lead that got all 3 touches and never replied.
+export function closeReason(notes) {
+  const s = String(notes || '')
+  const reason = classifyLostReason(s)
+  if (reason === 'Scam / Spam') return 'Spam'
+  if (reason === 'Chose another seller') return 'Chose another seller'
+  if (NO_FOLLOWUP_RE.test(s)) return 'Client rejected'
+  return 'No response'
 }
 
 export function lostReasons(rows) {

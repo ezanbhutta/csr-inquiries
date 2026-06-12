@@ -12,11 +12,27 @@ function Dots({ n }) {
   )
 }
 
-function StatusBadge({ closed }) {
-  return closed ? (
-    <span className="rounded-full bg-raised px-2 py-0.5 text-[11px] font-semibold text-dim">Closed</span>
-  ) : (
-    <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">Active</span>
+// Closed leads read by their disposition (the client's call / a dead lead),
+// not a flat "Closed" — so the outcome isn't pinned on the CSR.
+const CLOSE_TONE = {
+  'Client rejected': '#F59E0B',
+  'Chose another seller': '#0EA5E9',
+  Spam: '#EF4444',
+  'No response': '#8B82A8',
+}
+
+function StatusBadge({ lead }) {
+  if (!lead.closed) {
+    return <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[11px] font-semibold text-brand">Active</span>
+  }
+  const tone = CLOSE_TONE[lead.closeReason] || '#8B82A8'
+  return (
+    <span
+      className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+      style={{ color: tone, background: `${tone}1A` }}
+    >
+      {lead.closeReason || 'Closed'}
+    </span>
   )
 }
 
@@ -24,7 +40,7 @@ const PAGE = 40
 const MAX = 300
 
 export default function FollowUps({ stats }) {
-  const { leads, funnel, byProfile, openTotal, activeCount, closedCount, zeroOpenCount, zeroOpenPct } = stats
+  const { leads, funnel, byProfile, closedReasons, openTotal, activeCount, closedCount, zeroOpenCount, zeroOpenPct } = stats
   const [touch, setTouch] = useState(null) // null | 0 | 1 | 2 | 3
   const [profileF, setProfileF] = useState(null)
   const [q, setQ] = useState('')
@@ -64,15 +80,15 @@ export default function FollowUps({ stats }) {
       >
         📈 ~80% of sales need <b>5+ follow-ups</b>, yet ~44% of reps stop after one. Of your{' '}
         <b>{fmt(openTotal)}</b> open leads, <b>{fmt(activeCount)}</b> still need a follow-up and{' '}
-        <b>{fmt(zeroOpenPct)}%</b> have had none. The <b>{fmt(closedCount)}</b> that are done — all 3 follow-ups sent, or the
-        Note shows it's dead (spam, ordered elsewhere, not interested) — are closed.
+        <b>{fmt(zeroOpenPct)}%</b> have had none. The <b>{fmt(closedCount)}</b> closed leads ended on the client's side —
+        rejected, went with another seller, spam, or no reply after 3 follow-ups — not a missed touch.
       </p>
 
       {/* KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Need follow-up" tone="accent" value={fmt(activeCount)} sub="active leads, under 3 touches" />
         <Stat label="Zero follow-ups" tone="warn" value={fmt(zeroOpenCount)} sub={`${zeroOpenPct}% of open leads`} />
-        <Stat label="Closed" value={fmt(closedCount)} sub="3 done, or Note says stop" />
+        <Stat label="Closed" value={fmt(closedCount)} sub="client's call — see breakdown" />
       </div>
 
       {/* Funnel + coverage */}
@@ -141,6 +157,38 @@ export default function FollowUps({ stats }) {
         </Card>
       </div>
 
+      {/* Why leads closed — every closure framed as the client's call, not a missed touch */}
+      {closedReasons.length > 0 && (
+        <Card
+          title="Why leads closed"
+          subtitle="The outcome was on the client's side — a rejection, a competitor or spam — or no reply after 3 follow-ups"
+          right={<span className="pill">{fmt(closedCount)} closed</span>}
+        >
+          <div className="space-y-2.5">
+            {closedReasons.map((r) => (
+              <button
+                key={r.reason}
+                type="button"
+                onClick={() => {
+                  setStatus('closed')
+                  setQ('')
+                  setTouch(null)
+                }}
+                className="flex w-full items-center gap-3 rounded-lg px-1 py-1 text-left transition hover:bg-hover"
+              >
+                <span className="w-40 shrink-0 text-sm text-muted">{r.reason}</span>
+                <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-raised">
+                  <div className="h-full rounded-full" style={{ width: `${r.share}%`, background: CLOSE_TONE[r.reason] || '#A99FC4' }} />
+                </div>
+                <span className="w-20 shrink-0 text-right text-sm tabular-nums text-muted">
+                  {fmt(r.count)} · {r.share}%
+                </span>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Interactive leads table */}
       <Card
         title="Leads"
@@ -202,7 +250,7 @@ export default function FollowUps({ stats }) {
                   <td className="td whitespace-nowrap text-muted">{r.profile}</td>
                   <td className="td whitespace-nowrap text-muted">{r.shift}</td>
                   <td className="td"><Dots n={r.followups} /></td>
-                  <td className="td"><StatusBadge closed={r.closed} /></td>
+                  <td className="td"><StatusBadge lead={r} /></td>
                   <td className="td whitespace-nowrap">
                     {r.closed ? <span className="text-dim">—</span> : <span className="text-brand">Follow-up #{r.followups + 1}</span>}
                   </td>
