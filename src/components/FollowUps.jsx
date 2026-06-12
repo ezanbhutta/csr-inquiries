@@ -78,10 +78,10 @@ export default function FollowUps({ stats }) {
         className="rounded-xl border px-4 py-3 text-sm"
         style={{ background: '#F1EBFF', borderColor: '#D9C9FF', color: '#5E1FD8' }}
       >
-        📈 ~80% of sales need <b>5+ follow-ups</b>, yet ~44% of reps stop after one. Of your{' '}
-        <b>{fmt(openTotal)}</b> open leads, <b>{fmt(activeCount)}</b> still need a follow-up and{' '}
-        <b>{fmt(zeroOpenPct)}%</b> have had none. The <b>{fmt(closedCount)}</b> closed leads ended on the client's side —
-        rejected, went with another seller, spam, or no reply after 3 follow-ups — not a missed touch.
+        📈 Persistence closes deals — yet ~44% of reps give up after the first follow-up. Your standard is{' '}
+        <b>3 touches</b> before a lead is closed. Of your <b>{fmt(openTotal)}</b> open leads, <b>{fmt(activeCount)}</b> still
+        need a follow-up and <b>{fmt(zeroOpenPct)}%</b> have had none. The <b>{fmt(closedCount)}</b> closed leads ended on the
+        client's side — rejected, went with another seller, spam, or no reply after 3 follow-ups — not a missed touch.
       </p>
 
       {/* KPIs */}
