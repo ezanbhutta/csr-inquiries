@@ -254,15 +254,38 @@ export function byStatus(rows) {
 // but optional (a blank doesn't raise an error).
 export const REQUIRED_FIELDS = ['Date', 'Client Name', 'Order Status', 'Shift', 'CSR']
 
-// Errors are only flagged for inquiries from June 2026 onward. Everything before
-// is left alone, and rows that can't be confirmed to be June+ are not shown.
-// A row's date is its inquiry Date, falling back to Last Contact only when Date
-// is blank (so a June row with a missing date still surfaces, but undated/older
-// rows never do).
+// June 2026 is the cutoff for everything date-scoped. Earlier data is left alone.
 export const ERRORS_SINCE = '2026-06-01'
+
+// Dashboard scope: a row counts as June onward only when its Date (or, if blank,
+// Last Contact) is June 1 2026 or later. Undated rows are excluded so the
+// conversion analytics stay clean.
 export const inErrorScope = (r) => {
   const eff = r.date || r.lastContact
   return eff != null && eff >= ERRORS_SINCE
+}
+
+// Errors-page scope. Same June cutoff, but it must ALSO catch a brand-new row
+// where the employee wrote just the client name and skipped the Date — that row
+// has no date to test. The daily logs are append-only, so a row sitting below
+// the last confirmed pre-June row in its sheet was added later (= current) and
+// is flagged; an undated row up in the old data is left alone. This is what
+// lets "just the name, missing everything else" surface without dragging in the
+// whole sheet's historical gaps.
+export function scopeErrorRecords(records) {
+  // Per sheet, the furthest-down row position that still has a pre-June date.
+  const lastOld = {}
+  for (const r of records) {
+    if (r.rowIndex == null || !r.date || r.date >= ERRORS_SINCE) continue
+    if (lastOld[r.profile] == null || r.rowIndex > lastOld[r.profile]) lastOld[r.profile] = r.rowIndex
+  }
+  return records.filter((r) => {
+    if (r.date) return r.date >= ERRORS_SINCE // dated row → plain date check
+    if (r.lastContact && r.lastContact >= ERRORS_SINCE) return true // touched in June
+    if (r.rowIndex == null) return false
+    const line = lastOld[r.profile]
+    return line == null || r.rowIndex > line // appended after the last old row
+  })
 }
 
 export function missingRequired(r) {
