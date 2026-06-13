@@ -30,7 +30,9 @@ const firstNonEmpty = (row, indices = []) => {
 
 // Normalize one CSV row into a record. `client` is '' when the cell isn't a
 // real buyer username (used to detect orphan rows in the data-quality check).
-function normalizeRow(profile, row, map) {
+// `rowIndex` is the row's position in the sheet — used to tell whether an
+// undated row was appended recently (June onward) or is old.
+function normalizeRow(profile, row, map, rowIndex) {
   const dateRaw = firstNonEmpty(row, map.date)
   const statusRaw = firstNonEmpty(row, map.status)
   const d = parseDate(dateRaw)
@@ -47,6 +49,7 @@ function normalizeRow(profile, row, map) {
   const lcDate = parseDate(lcRaw)
   return {
     profile,
+    rowIndex,
     client: looksLikeClient(clientRaw) ? String(clientRaw).replace(/\s+/g, ' ').trim() : '',
     country: normalizeCountry(firstNonEmpty(row, map.country)),
     status: normalizeStatus(statusRaw),
@@ -81,7 +84,7 @@ export function parseTab(profile, csvText) {
 
   for (let r = index + 1; r < data.length; r++) {
     const row = data[r] || []
-    const rec = normalizeRow(profile, row, map)
+    const rec = normalizeRow(profile, row, map, r)
     if (rec.client) {
       records.push(rec)
       continue

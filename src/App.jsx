@@ -16,6 +16,7 @@ import {
   inErrorScope,
   kpis,
   lostReasons,
+  scopeErrorRecords,
   withRollingRate,
 } from './lib/metrics.js'
 import Gate, { isUnlocked } from './components/Gate.jsx'
@@ -234,8 +235,10 @@ export default function App() {
 
   const lostData = useMemo(() => lostReasons(juneRows), [juneRows])
 
-  // Errors: only inquiries from June 2026 onward (all profiles).
-  const errorRecords = useMemo(() => [...rows, ...orphans].filter(inErrorScope), [rows, orphans])
+  // Errors: inquiries from June 2026 onward (all profiles), PLUS any new row
+  // appended below the latest one — so a "just the name" entry with missing
+  // details is flagged even before its Date is filled in.
+  const errorRecords = useMemo(() => scopeErrorRecords([...rows, ...orphans]), [rows, orphans])
   const errorsDq = useMemo(() => dataQuality(errorRecords), [errorRecords])
   const errorDupes = useMemo(() => duplicateClients(errorRecords), [errorRecords])
 
@@ -423,8 +426,9 @@ export default function App() {
             <h1 className="disp text-2xl font-bold text-ink">Errors</h1>
             <p className="mt-0.5 text-sm text-muted">
               Inquiries from <b>June 2026 onward</b> that are missing a required field
-              (Date, Client Name, Order Status, Shift, CSR). Earlier data isn’t checked, and every
-              other column is optional — a blank there never errors.
+              (Date, Client Name, Order Status, Shift, CSR). Any <b>new row added below the latest one</b> counts as a
+              current inquiry, so a “just the name” entry is flagged even before its date is filled in. Earlier data
+              isn’t checked, and every other column is optional — a blank there never errors.
             </p>
           </div>
           <div className="space-y-4">
