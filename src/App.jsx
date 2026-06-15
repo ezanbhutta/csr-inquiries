@@ -227,13 +227,13 @@ export default function App() {
     [filtered, profiles],
   )
   const shiftRows = useMemo(() => byShift(filtered), [filtered])
-  const countryRows = useMemo(() => byCountry(juneRows), [juneRows])
+  const countryRows = useMemo(() => byCountry(filtered), [filtered])
   const daySeries = useMemo(() => withRollingRate(byDay(filtered)), [filtered])
-  const statusRows = useMemo(() => byStatus(juneRows), [juneRows])
+  const statusRows = useMemo(() => byStatus(filtered), [filtered])
   const fuStats = useMemo(() => followupStats(juneRows), [juneRows])
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
 
-  const lostData = useMemo(() => lostReasons(juneRows), [juneRows])
+  const lostData = useMemo(() => lostReasons(filtered), [filtered])
 
   // Errors: inquiries from June 2026 onward (all profiles), PLUS any new row
   // appended below the latest one — so a "just the name" entry with missing
