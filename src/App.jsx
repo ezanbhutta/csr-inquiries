@@ -230,7 +230,9 @@ export default function App() {
   const countryRows = useMemo(() => byCountry(filtered), [filtered])
   const daySeries = useMemo(() => withRollingRate(byDay(filtered)), [filtered])
   const statusRows = useMemo(() => byStatus(filtered), [filtered])
-  const fuStats = useMemo(() => followupStats(juneRows), [juneRows])
+  const fuStats = useMemo(() => followupStats(filtered), [filtered])
+  // Nav badge / dashboard pill show the full June backlog, independent of filters.
+  const fuStatsAll = useMemo(() => followupStats(juneRows), [juneRows])
   const datedCount = useMemo(() => filtered.filter((r) => r.date).length, [filtered])
 
   const lostData = useMemo(() => lostReasons(filtered), [filtered])
@@ -241,6 +243,26 @@ export default function App() {
   const errorRecords = useMemo(() => scopeErrorRecords([...rows, ...orphans]), [rows, orphans])
   const errorsDq = useMemo(() => dataQuality(errorRecords), [errorRecords])
   const errorDupes = useMemo(() => duplicateClients(errorRecords), [errorRecords])
+
+  // Shared filter bar (date range + Profiles + Shift). Rendered on both the
+  // Dashboard and the Follow-ups page so they filter identically.
+  const filterBar = (
+    <div className="mb-6 flex flex-wrap items-center gap-2">
+      <DateRangePicker
+        preset={preset}
+        setPreset={setPreset}
+        customStart={customStart}
+        customEnd={customEnd}
+        setCustomStart={setCustomStart}
+        setCustomEnd={setCustomEnd}
+        windowStart={range.from}
+        windowEnd={range.to}
+        today={businessDayTodayKey()}
+      />
+      <FilterMenu label="Profiles" allLabel="All profiles" options={PROFILES} selected={profiles} onChange={setProfiles} />
+      <FilterMenu label="Shift" allLabel="All shifts" options={SHIFT_OPTS} selected={shifts} onChange={setShifts} />
+    </div>
+  )
 
   // What changed today (business day, 5 AM PKT cutoff).
   const todayKey = businessDayTodayKey()
@@ -357,9 +379,9 @@ export default function App() {
               </button>
               <button className={`seg ${view === 'followups' ? 'seg-on' : ''}`} onClick={() => go('followups')}>
                 Follow-ups
-                {fuStats.activeCount > 0 && (
+                {fuStatsAll.activeCount > 0 && (
                   <span className="ml-1.5 rounded-full bg-amber px-1.5 py-0.5 text-[10px] font-bold text-white">
-                    {fmt(fuStats.activeCount)}
+                    {fmt(fuStatsAll.activeCount)}
                   </span>
                 )}
               </button>
@@ -442,9 +464,11 @@ export default function App() {
             <h1 className="disp text-2xl font-bold text-ink">Follow-ups</h1>
             <p className="mt-0.5 text-sm text-muted">
               Open (Not Placed) leads from <b>June 2026 onward</b> — Placed &amp; Direct Orders are already
-              won. A lead is active until it&rsquo;s closed — 3 follow-ups done, or the Note shows it&rsquo;s dead. Work the queue below.
+              won. A lead is active until it&rsquo;s closed — 3 follow-ups done, or the Note shows it&rsquo;s dead. Filter by
+              date, profile or shift below, then work the queue.
             </p>
           </div>
+          {filterBar}
           <FollowUps stats={fuStats} />
         </main>
       ) : (
@@ -475,7 +499,7 @@ export default function App() {
             )}
             <span className="flex flex-wrap gap-2 sm:ml-auto">
               <button onClick={() => go('followups')} className="pill border-amber/40 text-amber">
-                {fmt(fuStats.activeCount)} need follow-up
+                {fmt(fuStatsAll.activeCount)} need follow-up
               </button>
               <button
                 onClick={() => go('errors')}
@@ -487,21 +511,7 @@ export default function App() {
           </div>
 
           {/* Controls */}
-          <div className="mb-6 flex flex-wrap items-center gap-2">
-            <DateRangePicker
-              preset={preset}
-              setPreset={setPreset}
-              customStart={customStart}
-              customEnd={customEnd}
-              setCustomStart={setCustomStart}
-              setCustomEnd={setCustomEnd}
-              windowStart={range.from}
-              windowEnd={range.to}
-              today={businessDayTodayKey()}
-            />
-            <FilterMenu label="Profiles" allLabel="All profiles" options={PROFILES} selected={profiles} onChange={setProfiles} />
-            <FilterMenu label="Shift" allLabel="All shifts" options={SHIFT_OPTS} selected={shifts} onChange={setShifts} />
-          </div>
+          {filterBar}
 
           {errors.length > 0 && (
             <div className="mb-4 rounded-xl border border-amber/40 bg-amber/10 px-4 py-2 text-sm text-amber">
