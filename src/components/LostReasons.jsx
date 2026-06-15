@@ -16,7 +16,7 @@ const TONE = {
 export default function LostReasons({ data }) {
   const { total, reasons } = data
   return (
-    <Card title="Why leads don't convert" subtitle={`Inferred from Notes on ${fmt(total)} Not-Placed leads · June 2026 onward`}>
+    <Card title="Why leads don't convert" subtitle={`Inferred from Notes on ${fmt(total)} Not-Placed leads`}>
       <div className="space-y-2.5">
         {reasons.map((r) => {
           const share = total > 0 ? (r.count / total) * 100 : 0

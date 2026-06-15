@@ -15,7 +15,7 @@ const TONE = {
 export default function StatusBreakdown({ rows, onSelect }) {
   const total = rows.reduce((s, r) => s + r.count, 0)
   return (
-    <Card title="Outcome mix" subtitle="Order Status · June 2026 onward · click a status to open its log">
+    <Card title="Outcome mix" subtitle="Order Status · click a status to open its log">
       <div className="space-y-1">
         {rows.map((r) => {
           const share = total > 0 ? (r.count / total) * 100 : 0
