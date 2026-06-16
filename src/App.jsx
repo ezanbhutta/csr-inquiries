@@ -423,7 +423,7 @@ export default function App() {
               </p>
             </div>
           </div>
-          <LogPage rows={logRows} />
+          <LogPage rows={logRows} logType={route.logType} />
         </main>
       ) : view === 'roster' ? (
         <main className="mx-auto max-w-[88rem] px-4 py-6 sm:px-6">
