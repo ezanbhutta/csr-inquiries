@@ -19,9 +19,12 @@ const StatusCell = ({ status }) => {
   return <span className={won ? 'font-medium text-mint' : 'text-muted'}>{status}</span>
 }
 
-// Full inquiry log for one profile or shift — every field, with required fields
-// (Date, Client, Order Status, Shift, CSR) flagged in red when missing.
-export default function LogPage({ rows }) {
+// Full inquiry log for one profile, shift, country, CSR, etc. — every field,
+// with required fields (Date, Client, Order Status, Shift, CSR) flagged in red
+// when missing. The Profile column is shown on every log except a profile log
+// (where the page title already names the profile and it would just repeat).
+export default function LogPage({ rows, logType }) {
+  const showProfile = logType !== 'profile'
   const missingCount = rows.filter(
     (r) => !r.date || !r.client || !r.status || r.shift === 'Unassigned' || !r.csr,
   ).length
@@ -43,6 +46,7 @@ export default function LogPage({ rows }) {
           <thead>
             <tr>
               <th className="th">Date</th>
+              {showProfile && <th className="th">Profile</th>}
               <th className="th">Client</th>
               <th className="th">Country</th>
               <th className="th">Status</th>
@@ -59,6 +63,7 @@ export default function LogPage({ rows }) {
             {rows.map((r, i) => (
               <tr key={i} className="align-top hover:bg-hover">
                 <td className="td whitespace-nowrap">{r.date || <Miss />}</td>
+                {showProfile && <td className="td whitespace-nowrap font-medium text-ink">{r.profile}</td>}
                 <td className="td font-medium text-ink">{r.client || <Miss />}</td>
                 <td className="td whitespace-nowrap text-muted">{r.country || <Dash />}</td>
                 <td className="td whitespace-nowrap"><StatusCell status={r.status} /></td>
@@ -72,7 +77,7 @@ export default function LogPage({ rows }) {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={11} className="td text-center text-dim">No inquiries.</td></tr>
+              <tr><td colSpan={showProfile ? 12 : 11} className="td text-center text-dim">No inquiries.</td></tr>
             )}
           </tbody>
         </table>
