@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // Pure aggregation helpers over the normalized inquiry records.
 // ---------------------------------------------------------------------------
-import { BUSINESS_DAY_CUTOFF_HOUR, PKT_OFFSET_HOURS, PROFILES, SHIFTS, UNASSIGNED } from './config.js'
+import { BUSINESS_DAY_CUTOFF_HOUR, CSR_SHIFT, PKT_OFFSET_HOURS, PROFILES, SHIFTS, UNASSIGNED } from './config.js'
 
 const rate = (num, den) => (den > 0 ? num / den : 0)
 export const pct = (num, den) => Math.round(rate(num, den) * 1000) / 10
@@ -236,6 +236,34 @@ export function byCsr(rows) {
     eligible: eligible.length,
     total: rows.length,
   }
+}
+
+// Who WROTE the inquiries. The CSR column is whoever logged the row, not who
+// converted it — and a CSR often writes inquiries that came in on a shift other
+// than their own. This ranks CSRs by how many they wrote, with a per-shift
+// breakdown (the shift the query came in on) so cross-shift logging is visible.
+// `homeShift` is the CSR's own roster shift, when known.
+export function csrWriters(rows) {
+  const cats = [...SHIFTS, UNASSIGNED]
+  const groups = {}
+  rows.forEach((r) => {
+    if (!r.csr) return
+    const g = (groups[r.csr] = groups[r.csr] || { csr: r.csr, total: 0, shifts: Object.fromEntries(cats.map((c) => [c, 0])) })
+    g.total += 1
+    g.shifts[cats.includes(r.shift) ? r.shift : UNASSIGNED] += 1
+  })
+  const writers = Object.values(groups)
+    .map((g) => {
+      const homeShift = CSR_SHIFT[g.csr.toLowerCase()] || null
+      const byShift = cats
+        .map((shift) => ({ shift, count: g.shifts[shift], offHome: homeShift != null && shift !== homeShift && g.shifts[shift] > 0 }))
+        .filter((s) => s.count > 0)
+        .sort((a, b) => b.count - a.count)
+      const offHome = homeShift ? g.total - g.shifts[homeShift] : 0
+      return { csr: g.csr, total: g.total, homeShift, byShift, offHome }
+    })
+    .sort((a, b) => b.total - a.total || a.csr.localeCompare(b.csr))
+  return { writers, totalWritten: writers.reduce((s, w) => s + w.total, 0) }
 }
 
 export function byStatus(rows) {
