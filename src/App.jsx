@@ -9,6 +9,7 @@ import {
   byProfile,
   byShift,
   byStatus,
+  csrWriters,
   dataQuality,
   dateRangePreset,
   duplicateClients,
@@ -24,6 +25,7 @@ import TimeChart from './components/TimeChart.jsx'
 import DataQuality from './components/DataQuality.jsx'
 import FollowUps from './components/FollowUps.jsx'
 import LogPage from './components/LogPage.jsx'
+import WhoWrote from './components/WhoWrote.jsx'
 import CountryBreakdown from './components/CountryBreakdown.jsx'
 import LostReasons from './components/LostReasons.jsx'
 import DuplicateClients from './components/DuplicateClients.jsx'
@@ -230,6 +232,7 @@ export default function App() {
   const countryRows = useMemo(() => byCountry(filtered), [filtered])
   const daySeries = useMemo(() => withRollingRate(byDay(filtered)), [filtered])
   const statusRows = useMemo(() => byStatus(filtered), [filtered])
+  const writers = useMemo(() => csrWriters(filtered), [filtered])
   const fuStats = useMemo(() => followupStats(filtered), [filtered])
   // Nav badge / dashboard pill show the full June backlog, independent of filters.
   const fuStatsAll = useMemo(() => followupStats(juneRows), [juneRows])
@@ -554,8 +557,9 @@ export default function App() {
             <div className="lg:col-span-2">
               <ProfileTable rows={prof} onSelect={(p) => openLog('profile', p)} />
             </div>
-            <div className="lg:col-span-1">
+            <div className="lg:col-span-1 space-y-4">
               <ShiftBreakdown rows={shiftRows} onSelect={(s) => openLog('shift', s)} />
+              <WhoWrote data={writers} onOpen={(c) => openLog('csr', c)} />
             </div>
             <div className="lg:col-span-1">
               <StatusBreakdown rows={statusRows} onSelect={(s) => openLog('status', s)} />
