@@ -378,9 +378,13 @@ const LOST_REASONS = [
   ['Scam / Spam', /scam|spam|fraud|\bfake\b|fiverr\s*block/i],
   [
     'Chose another seller',
-    /ano(?:t)?her\s*(?:seller|designer|buyer|agency|provider|side)|cho(?:o|0)?se?d?\s*another|hired\s+\w+\s*(?:seller|designer|buyer)?|(?:better|other)\s*(?:option|seller|designer|buyer)|found\s*(?:a\s*)?better|(?:go|gon|going|went|move\w*)\s*(?:forward\s*)?with\s*another|select\w*\s*another|order\s*plac\w*\s*(?:to\s*)?(?:the\s*)?another|plac\w*\s*the\s*order\s*(?:to|another)/i,
+    /ano(?:t)?her\s*(?:seller|designer|buyer|agency|provider|side|vendor)|cho(?:o|0)?se?d?\s*another|hired\s+\w+\s*(?:seller|designer|buyer)?|(?:better|other)\s*(?:option|seller|designer|buyer|vendor)|found\s*(?:a\s*)?(?:better|another)|(?:go|gon|going|went|move\w*)\s*(?:forward\s*)?with\s*another|select\w*\s*another|order\s*plac\w*\s*(?:to\s*)?(?:the\s*)?another|plac\w*\s*the\s*order\s*(?:to|another)/i,
   ],
   ['Budget', /budg|afford|expensiv|too\s*(?:much|high|costly|low)|low\s*-?ball|price\s*(?:too|is|was|high)|out\s*of\s*budget/i],
+  [
+    'Declined',
+    /will\s*not\s*(?:take|order|proceed|buy|go)|won.?t\s*(?:take|order|proceed|buy)|not\s*(?:interest|intrest)|no\s*longer\s*(?:interest|intrest)|declin|chang\w*\s*(?:his|her|their|the)?\s*mind|not\s*(?:going|gonna)\s*(?:to\s*)?(?:order|buy|proceed|take)|back\w*\s*out|not\s*(?:taking|placing)\s*(?:the\s*)?order/i,
+  ],
   ['Meeting', /meeting|zoom|google\s*meet|\bcall\s*(?:schedul|set|book)|schedul\w*\s*(?:a\s*)?(?:call|meeting)/i],
   ['Custom offer', /offer|quote|package|pricing/i],
   ['Following up', /follow.?up/i],
@@ -388,13 +392,17 @@ const LOST_REASONS = [
     // "Awaiting reply" and "no response" are the same outcome — the client
     // hasn't replied — so they're one reason.
     'No response',
-    /await|wait\w*|wat[ie]ng|witing|wting|respons|respon|resposne|repon\w*|feedback|final\s*reply|first\s*response|client\s*respo|\bno+\s*response|not\s*respond|not\s*repl|\bno\s*repl|did?\s*n.?t\s*repl|no\s*answer|for\s*(?:his|her|the|client'?s?)?\s*-?\s*respon|get\s*back\s*to\s*you|need(?:s)?\s*(?:some\s*)?time|ask\w*\s*for\s*(?:some\s*)?time|i\s*will\s*confirm|in\s*process|on\s*cr\b|chat\s*continue/i,
+    /await|wait\w*|wat[ie]ng|witing|wting|respons|respon|resposne|repon\w*|feedback|final\s*reply|first\s*response|first\s*(?:msg|message)|client\s*respo|\bno+\s*response|not\s*respond|not\s*repl|\bno\s*repl|did?\s*n.?t\s*repl|no\s*answer|for\s*(?:his|her|the|client'?s?)?\s*-?\s*respon|get\s*back\s*to\s*you|need(?:s)?\s*(?:some\s*)?time|ask\w*\s*for\s*(?:some\s*)?time|i\s*will\s*confirm|in\s*process|on\s*cr\b|chat\s*continue/i,
   ],
 ]
 export function classifyLostReason(notes) {
   const s = String(notes || '')
   for (const [reason, re] of LOST_REASONS) if (re.test(s)) return reason
-  return s.trim() ? 'Other' : 'No note'
+  // No category matched — surface the actual note (trimmed) rather than a vague
+  // "Other", so the real reason is always visible. Blank = genuinely no note.
+  const t = s.replace(/\s+/g, ' ').trim()
+  if (!t) return 'No note'
+  return t.length > 42 ? `${t.slice(0, 42).trim()}…` : t
 }
 
 // A Note can make it clear a lead is dead and needs no further follow-up —
