@@ -11,10 +11,6 @@ const env = (typeof import.meta !== 'undefined' && import.meta.env) || {}
 export const SHEET_ID =
   env.VITE_SHEET_ID || '1Pp6RhsR96FzGfB3MV--CYj7Idja2-iyF7BNPhJ9Md_A'
 
-// Light, client-side gate (not real security — see README). Override per deploy.
-// Defaults to the CSR Pulse password so staff use one credential across both.
-export const DASH_PASSWORD = env.VITE_DASH_PASSWORD || 'Haseeb@0900#'
-
 // The 10 profile tabs, named exactly as they appear in the workbook.
 export const PROFILES = [
   'Abdul Haseeb',
@@ -49,6 +45,7 @@ export const ROSTER = [
   { id: 'misbah', name: 'Misbah', shift: 'Morning', role: 'CSR', active: true },
   { id: 'gulba', name: 'Gulba', shift: 'Morning', role: 'CSR', active: true },
   { id: 'amrah', name: 'Amrah', shift: 'Morning', role: 'CSR', active: true },
+  { id: 'zaheen', name: 'Zaheen', shift: 'Morning', role: 'CSR', active: true },
   { id: 'tayyab', name: 'Tayyab', shift: 'Evening', role: 'CSR', active: true },
   { id: 'hasnain', name: 'Hasnain Gillani', shift: 'Evening', role: 'CSR', active: true },
   { id: 'alishakeel', name: 'Ali Shakeel', shift: 'Evening', role: 'CSR', active: true },

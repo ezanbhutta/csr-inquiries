@@ -220,24 +220,6 @@ export function byDay(rows) {
     })
 }
 
-export function byCsr(rows) {
-  const eligible = rows.filter((r) => r.hasCsrColumn)
-  const groups = {}
-  rows.forEach((r) => {
-    if (!r.csr) return
-    ;(groups[r.csr] = groups[r.csr] || []).push(r)
-  })
-  const leaderboard = Object.entries(groups)
-    .map(([csr, rs]) => ({ csr, ...tally(rs) }))
-    .sort((a, b) => b.converted - a.converted || b.inquiries - a.inquiries)
-  return {
-    leaderboard,
-    logged: rows.filter((r) => r.csr).length,
-    eligible: eligible.length,
-    total: rows.length,
-  }
-}
-
 // Who WROTE the inquiries. The CSR column is whoever logged the row, not who
 // converted it — and a CSR often writes inquiries that came in on a shift other
 // than their own. This ranks CSRs by how many they wrote, with a per-shift
@@ -278,9 +260,10 @@ export function byStatus(rows) {
 }
 
 // --- Data quality ----------------------------------------------------------
-// The fields that MUST be present on every inquiry. Everything else is fetched
-// but optional (a blank doesn't raise an error).
-export const REQUIRED_FIELDS = ['Date', 'Client Name', 'Order Status', 'Shift', 'CSR']
+// The fields that MUST be present on every inquiry. "Order Value" is required
+// only when the order is won (Placed / Direct Order) — a won order with no value
+// is an error. Every other column is fetched but optional.
+export const REQUIRED_FIELDS = ['Date', 'Client Name', 'Order Status', 'Shift', 'CSR', 'Order Value']
 
 // June 2026 is the cutoff for everything date-scoped. Earlier data is left alone.
 export const ERRORS_SINCE = '2026-06-01'
@@ -323,6 +306,8 @@ export function missingRequired(r) {
   if (!r.status) m.push('Order Status') // '' = blank = missing
   if (r.shift === 'Unassigned') m.push('Shift')
   if (!r.csr) m.push('CSR')
+  // A won order (Placed / Direct Order) must have a value entered.
+  if (r.converted && r.value == null) m.push('Order Value')
   return m
 }
 

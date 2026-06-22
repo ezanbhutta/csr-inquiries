@@ -43,7 +43,7 @@ export default function DataQuality({ dq, scope }) {
   return (
     <Card
       title="Data quality"
-      subtitle={`Required on every inquiry: Date · Client Name · Order Status · Shift · CSR${scope ? ` · ${scope}` : ''}`}
+      subtitle={`Required: Date · Client Name · Order Status · Shift · CSR — plus Order Value on won orders${scope ? ` · ${scope}` : ''}`}
       right={
         <span
           className={`pill ${allClean ? 'border-mint/50 text-mint' : 'border-coral/50 text-coral'}`}
@@ -52,7 +52,7 @@ export default function DataQuality({ dq, scope }) {
         </span>
       }
     >
-      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {REQUIRED_FIELDS.map((f) => (
           <FieldTile key={f} field={f} missing={counts[f]} />
         ))}
