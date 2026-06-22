@@ -194,9 +194,10 @@ const COUNTRY_ALIASES = {
   // UAE / Saudi
   uae: 'United Arab Emirates', ksa: 'Saudi Arabia', 'saudia arabia': 'Saudi Arabia', 'saudi arab': 'Saudi Arabia',
   // abbreviations + typos
-  mex: 'Mexico', netherland: 'Netherlands', germay: 'Germany', ausralia: 'Australia', canda: 'Canada',
-  moroco: 'Morocco', switzarland: 'Switzerland', isreal: 'Israel', philipines: 'Philippines',
-  philippinesphilippines: 'Philippines', malysia: 'Malaysia', newzeland: 'New Zealand', 'new zeland': 'New Zealand',
+  mex: 'Mexico', maxico: 'Mexico', netherland: 'Netherlands', germay: 'Germany', germeny: 'Germany',
+  ausralia: 'Australia', canda: 'Canada', moroco: 'Morocco', switzarland: 'Switzerland', isreal: 'Israel',
+  philipines: 'Philippines', phillipines: 'Philippines', philippinesphilippines: 'Philippines',
+  branzil: 'Brazil', malysia: 'Malaysia', newzeland: 'New Zealand', 'new zeland': 'New Zealand',
   veitnam: 'Vietnam', indonasia: 'Indonesia', sangapur: 'Singapore', luxemborg: 'Luxembourg', suedia: 'Sweden',
 }
 

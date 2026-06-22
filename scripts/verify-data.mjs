@@ -4,7 +4,7 @@ import { syncAll } from '../src/lib/sync.js'
 import {
   byProfile,
   byShift,
-  byCsr,
+  csrWriters,
   byStatus,
   byDay,
   byCountry,
@@ -58,16 +58,14 @@ byShift(rows).forEach((s) =>
 console.log('\n=== STATUS BREAKDOWN ===')
 byStatus(rows).forEach((s) => console.log(`${String(s.status).padEnd(14)} ${fmt(s.count)}`))
 
-console.log('\n=== CSR LEADERBOARD (where logged) ===')
-const c = byCsr(rows)
-console.log(`coverage: ${c.logged}/${c.total} inquiries have a recognized CSR`)
-c.leaderboard
+console.log('\n=== WHO WROTE THE INQUIRIES (top 15) ===')
+const c = csrWriters(rows)
+console.log(`total written: ${c.totalWritten} across ${c.writers.length} CSRs`)
+c.writers
   .slice(0, 15)
   .forEach((x) =>
     console.log(
-      `${x.csr.padEnd(16)} inq ${String(x.inquiries).padStart(4)} | conv ${String(
-        x.converted,
-      ).padStart(3)} | ${x.conversionRate}%`,
+      `${x.csr.padEnd(16)} wrote ${String(x.total).padStart(4)} | home ${String(x.homeShift || '—').padEnd(8)} | off-shift ${x.offHome}`,
     ),
   )
 

@@ -26,7 +26,7 @@ const StatusCell = ({ status }) => {
 export default function LogPage({ rows, logType }) {
   const showProfile = logType !== 'profile'
   const missingCount = rows.filter(
-    (r) => !r.date || !r.client || !r.status || r.shift === 'Unassigned' || !r.csr,
+    (r) => !r.date || !r.client || !r.status || r.shift === 'Unassigned' || !r.csr || (r.converted && r.value == null),
   ).length
 
   return (
@@ -69,7 +69,7 @@ export default function LogPage({ rows, logType }) {
                 <td className="td whitespace-nowrap"><StatusCell status={r.status} /></td>
                 <td className="td whitespace-nowrap">{r.shift && r.shift !== 'Unassigned' ? <span className="text-muted">{r.shift}</span> : <Miss />}</td>
                 <td className="td whitespace-nowrap">{r.csr || <Miss />}</td>
-                <td className="td text-right tabular-nums text-muted">{r.value != null ? money(r.value) : <Dash />}</td>
+                <td className="td text-right tabular-nums text-muted">{r.value != null ? money(r.value) : r.converted ? <Miss /> : <Dash />}</td>
                 <td className="td">{r.upsell ? <span className="text-mint">Yes</span> : <Dash />}</td>
                 <td className="td whitespace-nowrap"><Dots n={r.followups || 0} /></td>
                 <td className="td whitespace-nowrap text-muted">{r.lastContact || <Dash />}</td>

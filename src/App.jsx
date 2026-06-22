@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { PROFILES, ROSTER, SHIFTS, UNASSIGNED } from './lib/config.js'
+import { PROFILES, SHIFTS, UNASSIGNED } from './lib/config.js'
 import { loadCache, saveCache, syncAll } from './lib/sync.js'
 import {
   applyFilters,
@@ -20,7 +20,6 @@ import {
   scopeErrorRecords,
   withRollingRate,
 } from './lib/metrics.js'
-import Gate, { isUnlocked } from './components/Gate.jsx'
 import TimeChart from './components/TimeChart.jsx'
 import DataQuality from './components/DataQuality.jsx'
 import FollowUps from './components/FollowUps.jsx'
@@ -48,23 +47,6 @@ const PRESET_LABELS = {
 
 const LOG_LABEL = { profile: 'Profile', shift: 'Shift', country: 'Country', status: 'Status', date: 'Day', client: 'Client', csr: 'CSR' }
 
-const ROSTER_KEY = 'csr-inquiries:roster'
-const SHIFTHIST_KEY = 'csr-inquiries:shifthistory'
-const loadRoster = () => {
-  try {
-    const r = JSON.parse(localStorage.getItem(ROSTER_KEY))
-    return Array.isArray(r) && r.length ? r : ROSTER
-  } catch {
-    return ROSTER
-  }
-}
-const loadJSON = (key, fallback) => {
-  try {
-    return JSON.parse(localStorage.getItem(key)) || fallback
-  } catch {
-    return fallback
-  }
-}
 
 const parseHash = () => {
   const h = ((typeof location !== 'undefined' && location.hash) || '').replace(/^#/, '')
@@ -144,7 +126,6 @@ function FilterMenu({ label, options, selected, onChange, allLabel }) {
 }
 
 export default function App() {
-  const [unlocked, setUnlocked] = useState(isUnlocked())
   const [rows, setRows] = useState(() => loadCache()?.rows ?? [])
   const [orphans, setOrphans] = useState(() => loadCache()?.orphans ?? [])
   const [syncedAt, setSyncedAt] = useState(() => loadCache()?.syncedAt ?? null)
@@ -156,8 +137,6 @@ export default function App() {
   const [customEnd, setCustomEnd] = useState(null)
   const [profiles, setProfiles] = useState([])
   const [shifts, setShifts] = useState([])
-  const [roster, setRoster] = useState(loadRoster)
-  const [shiftHistory, setShiftHistory] = useState(() => loadJSON(SHIFTHIST_KEY, []))
   const [route, setRoute] = useState(parseHash)
   const view = route.view
 
@@ -178,31 +157,15 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (unlocked) refresh()
+    refresh()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unlocked])
+  }, [])
 
   useEffect(() => {
     const h = () => setRoute(parseHash())
     window.addEventListener('hashchange', h)
     return () => window.removeEventListener('hashchange', h)
   }, [])
-
-  // Persist roster edits locally (like CSR Pulse).
-  useEffect(() => {
-    try {
-      localStorage.setItem(ROSTER_KEY, JSON.stringify(roster))
-    } catch {
-      /* ignore */
-    }
-  }, [roster])
-  useEffect(() => {
-    try {
-      localStorage.setItem(SHIFTHIST_KEY, JSON.stringify(shiftHistory))
-    } catch {
-      /* ignore */
-    }
-  }, [shiftHistory])
 
   // The whole dashboard is locked to June 2026 onward; the date picker drills
   // within it. Pre-June data is never shown.
@@ -301,8 +264,6 @@ export default function App() {
     return [...rows, ...orphans].filter(match).sort((a, b) => (b.ts ?? -Infinity) - (a.ts ?? -Infinity))
   }, [rows, orphans, route])
 
-  if (!unlocked) return <Gate onUnlock={() => setUnlocked(true)} />
-
   const rangeLabel =
     preset === 'all'
       ? `All time${range.from ? ` (${range.from} → ${range.to})` : ''}`
@@ -315,30 +276,6 @@ export default function App() {
   const openLog = (type, value) => {
     location.hash = `log/${type}/${encodeURIComponent(value)}`
     setRoute(parseHash())
-  }
-
-  // Roster editing (same model as CSR Pulse).
-  const rosterChangeShift = (id, newShift) => {
-    const c = roster.find((x) => x.id === id)
-    if (!c || c.shift === newShift) return
-    setShiftHistory((h) => [...h, { name: c.name, from: c.shift, to: newShift, changedOn: businessDayTodayKey() }])
-    setRoster((rs) => rs.map((x) => (x.id === id ? { ...x, shift: newShift } : x)))
-  }
-  const rosterToggleArchive = (id) =>
-    setRoster((rs) => rs.map((x) => (x.id === id ? { ...x, active: !x.active } : x)))
-  const rosterEditName = (id, name) => {
-    const n = name.trim()
-    if (!n) return
-    setRoster((rs) => rs.map((x) => (x.id === id ? { ...x, name: n } : x)))
-  }
-  const rosterAddPerson = ({ name, shift, role }) => {
-    const nm = name.trim()
-    if (!nm) return
-    const base = nm.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 16) || 'csr'
-    let id = base
-    let n = 2
-    while (roster.find((r) => r.id === id)) id = base + n++
-    setRoster((rs) => [...rs, { id, name: nm, shift, role, active: true }])
   }
 
   const exportPdf = async () => {
@@ -433,27 +370,20 @@ export default function App() {
           <div className="mb-5">
             <h1 className="disp text-2xl font-bold text-ink">Team roster</h1>
             <p className="mt-0.5 text-sm text-muted">
-              Edit names, change shifts, add people and archive — same as CSR Pulse. Saved on this device.
+              The team by shift — shared for everyone, and what drives the shift / off-shift attribution across the dashboard.
             </p>
           </div>
-          <RosterPage
-            roster={roster}
-            shiftHistory={shiftHistory}
-            onChangeShift={rosterChangeShift}
-            onToggleArchive={rosterToggleArchive}
-            onEditName={rosterEditName}
-            onAddPerson={rosterAddPerson}
-          />
+          <RosterPage />
         </main>
       ) : view === 'errors' ? (
         <main className="mx-auto max-w-[88rem] px-4 py-6 sm:px-6">
           <div className="mb-5">
             <h1 className="disp text-2xl font-bold text-ink">Errors</h1>
             <p className="mt-0.5 text-sm text-muted">
-              Inquiries from <b>June 2026 onward</b> that are missing a required field
-              (Date, Client Name, Order Status, Shift, CSR). Any <b>new row added below the latest one</b> counts as a
-              current inquiry, so a “just the name” entry is flagged even before its date is filled in. Earlier data
-              isn’t checked, and every other column is optional — a blank there never errors.
+              Inquiries from <b>June 2026 onward</b> missing a required field (Date, Client Name, Order Status, Shift,
+              CSR) — plus <b>Order Value when the order is won</b>. Any <b>new row added below the latest one</b> counts as
+              a current inquiry, so a “just the name” entry is flagged even before its date is filled in. Earlier data
+              isn’t checked; other columns are optional. (Repeat buyers below are informational, not errors.)
             </p>
           </div>
           <div className="space-y-4">
