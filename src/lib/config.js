@@ -11,7 +11,9 @@ const env = (typeof import.meta !== 'undefined' && import.meta.env) || {}
 export const SHEET_ID =
   env.VITE_SHEET_ID || '1Pp6RhsR96FzGfB3MV--CYj7Idja2-iyF7BNPhJ9Md_A'
 
-// The 10 profile tabs, named exactly as they appear in the workbook.
+// The 9 active profile tabs, named exactly as they appear in the workbook.
+// (Storm Design was removed when that profile left — the sheet tab remains but
+// the app no longer reads it. Re-add the name here to bring it back.)
 export const PROFILES = [
   'Abdul Haseeb',
   'Tariq Mahmood',
@@ -19,7 +21,6 @@ export const PROFILES = [
   'Alee Studioz',
   'Carpicon',
   'Dygram Designs',
-  'Storm Design',
   'WeDesignz',
   'Grid Designs',
   'X Studioz',
