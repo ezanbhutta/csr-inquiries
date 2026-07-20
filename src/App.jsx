@@ -47,6 +47,10 @@ const PRESET_LABELS = {
 
 const LOG_LABEL = { profile: 'Profile', shift: 'Shift', country: 'Country', status: 'Status', date: 'Day', client: 'Client', csr: 'CSR' }
 
+// normalizeStatus() value for spam/scam. Spam isn't a genuine inquiry, so it's
+// excluded from every volume/conversion metric (shown separately + in Outcome mix).
+const SPAM_STATUS = 'Spam/Scam'
+
 
 const parseHash = () => {
   const h = ((typeof location !== 'undefined' && location.hash) || '').replace(/^#/, '')
@@ -175,13 +179,20 @@ export default function App() {
     () => dateRangePreset(preset, juneRows, { start: customStart, end: customEnd }),
     [preset, juneRows, customStart, customEnd],
   )
-  const filtered = useMemo(
+  // Spam-inclusive (used only for the Outcome mix + the spam count).
+  const filteredAll = useMemo(
     () => applyFilters(juneRows, { profiles, shifts, from: range.from, to: range.to }),
     [juneRows, profiles, shifts, range],
   )
+  // Genuine inquiries — spam removed. This feeds every volume/conversion metric.
+  const filtered = useMemo(() => filteredAll.filter((r) => r.status !== SPAM_STATUS), [filteredAll])
+  const spamCount = useMemo(() => filteredAll.length - filtered.length, [filteredAll, filtered])
   const prevRange = useMemo(() => (preset === 'all' ? null : shiftRangeBack(range)), [preset, range])
   const prevFiltered = useMemo(
-    () => (prevRange ? applyFilters(juneRows, { profiles, shifts, ...prevRange }) : []),
+    () =>
+      prevRange
+        ? applyFilters(juneRows, { profiles, shifts, ...prevRange }).filter((r) => r.status !== SPAM_STATUS)
+        : [],
     [juneRows, profiles, shifts, prevRange],
   )
 
@@ -194,7 +205,7 @@ export default function App() {
   const shiftRows = useMemo(() => byShift(filtered), [filtered])
   const countryRows = useMemo(() => byCountry(filtered), [filtered])
   const daySeries = useMemo(() => withRollingRate(byDay(filtered)), [filtered])
-  const statusRows = useMemo(() => byStatus(filtered), [filtered])
+  const statusRows = useMemo(() => byStatus(filteredAll), [filteredAll])
   const writers = useMemo(() => csrWriters(filtered), [filtered])
   const fuStats = useMemo(() => followupStats(filtered), [filtered])
   // Nav badge / dashboard pill show the full June backlog, independent of filters.
@@ -233,11 +244,13 @@ export default function App() {
   // What changed today (business day, 5 AM PKT cutoff).
   const todayKey = businessDayTodayKey()
   const todayStats = useMemo(() => {
-    const t = rows.filter((r) => r.date === todayKey)
+    // Genuine inquiries only — spam is excluded here too.
+    const genuine = rows.filter((r) => r.status !== SPAM_STATUS)
+    const t = genuine.filter((r) => r.date === todayKey)
     const converted = t.filter((r) => r.converted).length
     const d = new Date(todayKey + 'T00:00:00Z')
     d.setUTCDate(d.getUTCDate() - 1)
-    const yInq = rows.filter((r) => r.date === d.toISOString().slice(0, 10)).length
+    const yInq = genuine.filter((r) => r.date === d.toISOString().slice(0, 10)).length
     return {
       inquiries: t.length,
       converted,
@@ -473,6 +486,13 @@ export default function App() {
             />
             <Stat label="Won value" value={money(k.convertedValue)} sub={`Avg deal ${money(k.avgDealValue)}`} />
           </div>
+
+          {spamCount > 0 && (
+            <p className="mb-6 -mt-3 px-1 text-xs text-dim">
+              {fmt(spamCount)} spam {spamCount === 1 ? 'inquiry is' : 'inquiries are'} excluded from these numbers — shown
+              separately in the Outcome mix below.
+            </p>
+          )}
 
           {/* Charts & tables */}
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
