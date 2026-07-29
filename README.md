@@ -21,7 +21,7 @@ and the same password-gated sign-in — so the two dashboards feel like one prod
   coverage — each with a vs-previous-period delta.
 - **Inquiries & conversion over time** — daily volume, conversions, and a 7-day rolling
   conversion rate.
-- **By profile** — which of the 9 profiles get the inquiries and convert them (sortable).
+- **By profile** — which of the 10 profiles get the inquiries and convert them (sortable).
 - **By shift** — Morning / Evening / Night (which shift the inquiry came in on).
 - **By CSR** — *who wrote the query*, for the tabs where a CSR is recorded, with a
   coverage badge so you know how representative it is.
@@ -39,8 +39,8 @@ and the same password-gated sign-in — so the two dashboards feel like one prod
 
 - Workbook: **Client Daily Inquiries** (`VITE_SHEET_ID`), shared *"anyone with link can view."*
 - One tab per profile: `Abdul Haseeb, Tariq Mahmood, Eikon Designs, Alee Studioz,
-  Carpicon, Dygram Designs, WeDesignz, Grid Designs, X Studioz`. (Storm Design left
-  the agency and is no longer read; its tab remains in the workbook.)
+  Carpicon, Dygram Designs, WeDesignz, Grid Designs, X Studioz, Skyblew`. (Storm Design
+  left the agency and is no longer read; its tab remains in the workbook.)
 - Pulled client-side from the public CSV endpoint, on load and on **Refresh**:
   `https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet={Profile}`
 - Cached in `localStorage` so reloads are instant; the sheet is always the source of truth.
